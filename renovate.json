@@ -1,0 +1,61 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard",
+    ":enableVulnerabilityAlertsWithLabel(security)"
+  ],
+  "timezone": "Europe/Vienna",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 6,
+  "packageRules": [
+    {
+      "description": "OpenCloud production base image (:production channel) - group, label, manual review",
+      "matchPackageNames": ["opencloudeu/opencloud"],
+      "groupName": "OpenCloud production base",
+      "commitMessageTopic": "OpenCloud production base",
+      "commitMessagePrefix": "feat:",
+      "labels": ["base-image"]
+    },
+    {
+      "description": "OpenCloud rolling base image (:rolling channel) - group, label, manual review",
+      "matchPackageNames": ["opencloudeu/opencloud-rolling"],
+      "groupName": "OpenCloud rolling base",
+      "commitMessageTopic": "OpenCloud rolling base",
+      "commitMessagePrefix": "feat:",
+      "labels": ["base-image"]
+    },
+    {
+      "description": "Static gosu privilege-drop helper image (multi-stage COPY --from)",
+      "matchPackageNames": ["tianon/gosu"],
+      "groupName": "gosu",
+      "commitMessagePrefix": "build:",
+      "labels": ["base-image"]
+    },
+    {
+      "description": "GitHub Actions: auto-merge all updates. No CI runs on PRs, so platformAutomerge merges as soon as the PR is open.",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major", "minor", "patch", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "platformAutomerge": true,
+      "commitMessagePrefix": "ci:",
+      "labels": ["github-actions"]
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track BOTH OpenCloud base pins (production + rolling) from the Dockerfile ARGs",
+      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
+      "matchStrings": [
+        "ARG BASE=(?<depName>\\S+):(?<currentValue>\\S+)",
+        "ARG BASE_ROLLING=(?<depName>\\S+):(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ]
+}

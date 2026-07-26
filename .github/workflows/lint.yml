@@ -1,0 +1,53 @@
+name: Lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  hadolint:
+    name: Hadolint (Dockerfile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hadolint/hadolint-action@v3.3.0
+        with:
+          dockerfile: Dockerfile
+          # The wrapper Dockerfile carries inline `hadolint ignore=` for the two
+          # deliberate cases (DL3006 on `FROM ${BASE}`, DL3002 on the intentional
+          # `USER root` that the entrypoint drops from via gosu).
+          failure-threshold: warning
+
+  shellcheck:
+    name: ShellCheck (wrapper scripts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run shellcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+          SCRIPTS="entrypoint.sh print-banner.sh"
+          echo "Checking: ${SCRIPTS}"
+          # -S warning: fail on warnings and up
+          shellcheck -S warning ${SCRIPTS}
+          echo "All scripts passed shellcheck."
+
+  xml-validate:
+    name: XML Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Validate XML files
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxml2-utils
+          # No XML ships in this repo today (the CA template lives in unraid-apps),
+          # but keep the guard so any future XML is validated automatically.
+          for f in $(find . -name '*.xml' -not -path './.git/*'); do
+            echo "Checking $f"
+            xmllint --noout "$f"
+          done

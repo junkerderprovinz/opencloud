@@ -1,0 +1,7 @@
+# Shell scripts + the init banner run on Linux (Alpine BusyBox sh) - always store
+# and check out LF so a Windows CRLF checkout can never break the shebang or the
+# log-banner rendering.
+*.sh text eol=lf
+entrypoint.sh text eol=lf
+print-banner.sh text eol=lf
+.github/assets/banner-raw.txt text eol=lf

@@ -1,0 +1,15 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Build artefacts
+*.tar
+*.tar.gz
+*.log
+
+# Local Claude Code / agent config (never commit)
+.claude/

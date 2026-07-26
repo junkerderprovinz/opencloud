@@ -142,6 +142,27 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `9200` | HTTPS WebUI / API (self-signed by default) | | `/etc/opencloud` | Config (`opencloud.yaml` + secrets) |
 | | | | `/var/lib/opencloud` | Data — user files, index, `nats` bus |
 
+> **No database.** OpenCloud is *not* Nextcloud — it has no MySQL/Postgres and needs none. State lives in the decomposed metadata tree on the `/var/lib/opencloud` volume plus an embedded NATS bus. Don't add a database container; there's nothing to point it at.
+
+<br>
+
+### S3 object storage (optional)
+
+OpenCloud can keep file **blobs** in any S3-compatible bucket (MinIO, AWS S3, Backblaze B2, Wasabi) while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables — leave them unset for normal local storage.
+
+| Variable | Example | Description |
+|---|---|---|
+| `STORAGE_USERS_DRIVER` | `decomposeds3` | Switches blob storage to S3. Unset = local storage (default). |
+| `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:9000` | S3 endpoint. Internal `http://` URL for self-hosted MinIO; the provider's `https://` endpoint for AWS/B2/Wasabi. |
+| `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` for most MinIO installs; the provider region (`us-east-1`, …) otherwise. |
+| `STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY` | `…` | Access key ID. |
+| `STORAGE_USERS_DECOMPOSEDS3_SECRET_KEY` | `…` | Secret access key. |
+| `STORAGE_USERS_DECOMPOSEDS3_BUCKET` | `opencloud` | Bucket name — **create it first**, the container does not. |
+
+> **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
+
+MinIO note: if uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. This wrapper's S3 path is verified end-to-end against MinIO (blob lands in the bucket, metadata on the local volume).
+
 <br>
 
 ## 4. Production vs Rolling

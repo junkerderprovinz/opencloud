@@ -41,8 +41,8 @@ const THEMES = [
   { suffix: "-dark", bg: "#0d1117", logo: "opencloud-logo-dark.svg", claim: "#9aa4ad" },
 ];
 const W = 1600, H = 500;
-const LOGO_W = 760;                 // rendered wordmark width on the banner
-const claimSize = 40, lineGap = 40; // gap between wordmark and claim
+const LOGO_W = 1060;                // rendered logo+wordmark width (larger, prominent)
+const claimSize = 40, lineGap = 34; // claim sits as a subtitle directly under the heading
 // ---------------------------------------------------------------------------
 
 // Lato (OFL) for the claim - fetched at runtime, never committed.

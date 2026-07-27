@@ -1,21 +1,17 @@
 /**
  * Generates the OpenCloud README banners (house theme-adaptive pair):
- *   opencloud-banner.svg / .png      : light 1600x500 - white bg, dark-teal wordmark
- *   opencloud-banner-dark.svg / .png : dark  1600x500 - GitHub-dark bg, lavender wordmark
+ *   opencloud-banner.svg / .png      : light 1600x500 - white bg
+ *   opencloud-banner-dark.svg / .png : dark  1600x500 - GitHub-dark bg
  *
- * The logo + wordmark are the OFFICIAL OpenCloud brand SVGs, embedded VERBATIM
- * (never redrawn): opencloud-logo.svg (dark-teal #20434F for light backgrounds)
- * and opencloud-logo-dark.svg (lavender #E2BAFF for dark backgrounds), both taken
- * unmodified from opencloud-eu/opencloud. Only the background and the claim colour
- * flip between the two themes. The README serves the pair via <picture>.
- *
- * The cheeky claim is set in Lato (OFL, a humanist sans shared across the house
- * repos), fetched at runtime to the OS temp dir and converted to SVG paths with
- * opentype.js so the SVG is self-contained (no font needed at render time). The
- * font is NEVER committed.
- *
- * viewBox-agnostic: the logo's own viewBox is read from the file and reused, so a
- * future official-logo swap with a different viewBox keeps working.
+ * The official OpenCloud logo is a combined mark+wordmark lockup. To match the
+ * house banner layout (a prominent mark + the wordmark at the same size as every
+ * other repo's name), it is split into its mark paths (the first 3, the hexagon)
+ * and its wordmark paths (the remaining 8, "OpenCloud") - both VERBATIM from the
+ * official SVG, never redrawn. The mark is rendered a little larger than the
+ * wordmark; the wordmark is sized to the house name height. Each theme uses the
+ * matching OFFICIAL colour variant (light = teal opencloud-logo.svg, dark =
+ * lavender opencloud-logo-dark.svg), so nothing is recoloured. The claim is Lato
+ * (OFL) in the standard grey, converted to paths so the SVG needs no font.
  *
  * Deps: `npm i -g @resvg/resvg-js opentype.js`. Run:
  *   node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
@@ -28,23 +24,23 @@ import { createRequire } from "node:module";
 import { execSync } from "node:child_process";
 
 const require = createRequire(import.meta.url);
-const opentype = require(`${execSync("npm root -g").toString().trim()}/opentype.js`);
+const groot = execSync("npm root -g").toString().trim();
+const opentype = require(`${groot}/opentype.js`);
+const { Resvg } = require(`${groot}/@resvg/resvg-js`);
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 
-// ---- content + styling -----------------------------------------------------
+// ---- content + sizing ------------------------------------------------------
 const CLAIM = "Your files. Your cloud. Your terms.";
-// jdp wants the OpenCloud wordmark ALWAYS white -> a single branded banner on the
-// OpenCloud brand teal, with a white logo (recolored from the official teal SVG,
-// geometry verbatim). Both <picture> variants use it, so the heading is white in
-// GitHub's light AND dark themes.
-const THEMES = [
-  { suffix: "",      bg: "#20434f", logo: "opencloud-logo-white.svg", claim: "#b9ccd1" },
-  { suffix: "-dark", bg: "#20434f", logo: "opencloud-logo-white.svg", claim: "#b9ccd1" },
-];
 const W = 1600, H = 500;
-const LOGO_W = 1140;                // rendered logo+wordmark width (large, prominent)
-const claimSize = 40, lineGap = 34; // claim sits as a subtitle directly under the heading
+const WORD_H = 120;      // wordmark height in px - the house name size
+const MARK_H = 188;      // mark a little larger than the wordmark (jdp)
+const GAP = 46;          // gap between mark and wordmark
+const claimSize = 40, lineGap = 34;
+const THEMES = [
+  { suffix: "",      bg: "#ffffff", logo: "opencloud-logo.svg",      claim: "#5a5d5e" },
+  { suffix: "-dark", bg: "#0d1117", logo: "opencloud-logo-dark.svg", claim: "#9aa4ad" },
+];
 // ---------------------------------------------------------------------------
 
 // Lato (OFL) for the claim - fetched at runtime, never committed.
@@ -55,42 +51,72 @@ if (!existsSync(claimFontPath)) {
   writeFileSync(claimFontPath, Buffer.from(await r.arrayBuffer()));
 }
 const claimFont = opentype.parse(readFileSync(claimFontPath));
-
 const claimW = claimFont.getAdvanceWidth(CLAIM, claimSize);
 const cEm = (s) => s / claimFont.unitsPerEm;
 const claimAsc = claimFont.ascender * cEm(claimSize);
 const claimDesc = -claimFont.descender * cEm(claimSize);
 
+// Split the official lockup into mark + wordmark by X POSITION (the paths are NOT
+// ordered mark-then-wordmark; the hexagon paths sit in the middle of the list).
+// The mark occupies the left ~16% of the viewBox (x 0..27 of 170); everything
+// further right is the wordmark. Measure each group's tight bbox via resvg.
+function parseLogo(file) {
+  const raw = readFileSync(join(__dir, file), "utf8");
+  const vb = (raw.match(/viewBox="([^"]+)"/) || [, "0 0 170 35"])[1];
+  const vw = Number(vb.split(/\s+/)[2]);
+  // Match every drawable shape, not just <path>: the "l" in the wordmark is a
+  // thin <rect>, which a path-only match silently drops (renders "OpenC oud").
+  const paths = raw.match(/<(?:path|rect|circle|ellipse|line|polygon|polyline)\b[^>]*?\/?>/g) || [];
+  const bbox = (inner) =>
+    new Resvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${vb}">${inner}</svg>`,
+      { background: "rgba(0,0,0,0)" }).innerBBox();
+  const marks = [], words = [];
+  for (const p of paths) {
+    const b = bbox(p);
+    ((b.x + b.width / 2) < vw * 0.19 ? marks : words).push(p);
+  }
+  const mark = marks.join(""), word = words.join("");
+  return { vb, mark, word, markBB: bbox(mark), wordBB: bbox(word) };
+}
+
+// Embed a path group cropped to its bbox at (x,y,w,h) via a nested <svg viewBox>.
+function place(inner, bb, x, y, h) {
+  const w = h * (bb.width / bb.height);
+  return {
+    w,
+    svg: `<svg x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" viewBox="${bb.x} ${bb.y} ${bb.width} ${bb.height}" xmlns="http://www.w3.org/2000/svg">${inner}</svg>`,
+  };
+}
+
 for (const t of THEMES) {
-  // Embed the official logo verbatim; read its own viewBox (viewBox-agnostic).
-  let logo = readFileSync(join(__dir, t.logo), "utf8").replace(/<\?xml[^>]*\?>\s*/, "");
-  const vb = (logo.match(/viewBox="([^"]+)"/) || [])[1] || "0 0 170 35";
-  const [, , vbW, vbH] = vb.split(/\s+/).map(Number);
-  const LW = LOGO_W;
-  const LH = LW * (vbH / vbW);
+  const L = parseLogo(t.logo);
+  const markW = MARK_H * (L.markBB.width / L.markBB.height);
+  const wordW = WORD_H * (L.wordBB.width / L.wordBB.height);
 
-  // Vertically centre the group [logo] + lineGap + [claim].
-  const blockH = LH + lineGap + claimAsc + claimDesc;
+  // Group = [mark] GAP [wordmark], vertically centred on each other; claim below.
+  const rowH = Math.max(MARK_H, WORD_H);
+  const groupW = markW + GAP + wordW;
+  const blockH = rowH + lineGap + claimAsc + claimDesc;
   const top = (H - blockH) / 2;
-  const LX = (W - LW) / 2;
-  const LY = top;
-  const claimBaseline = top + LH + lineGap + claimAsc;
+  const startX = (W - groupW) / 2;
+
+  const markY = top + (rowH - MARK_H) / 2;
+  const wordY = top + (rowH - WORD_H) / 2;
+  const mark = place(L.mark, L.markBB, startX, markY, MARK_H);
+  const word = place(L.word, L.wordBB, startX + markW + GAP, wordY, WORD_H);
+
+  const claimBaseline = top + rowH + lineGap + claimAsc;
   const claimX = (W - claimW) / 2;
-
-  logo = logo.replace(
-    /<svg\b[^>]*>/,
-    `<svg x="${LX.toFixed(2)}" y="${LY.toFixed(2)}" width="${LW}" height="${LH.toFixed(2)}" viewBox="${vb}" xmlns="http://www.w3.org/2000/svg">`,
-  );
-
   const claimPath = claimFont.getPath(CLAIM, claimX, claimBaseline, claimSize).toPathData(2);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="OpenCloud">
   <rect width="${W}" height="${H}" fill="${t.bg}"/>
-  ${logo}
+  ${mark.svg}
+  ${word.svg}
   <path d="${claimPath}" fill="${t.claim}"/>
 </svg>
 `;
   writeFileSync(join(__dir, `opencloud-banner${t.suffix}.svg`), svg);
-  console.log(`opencloud-banner${t.suffix}.svg written (logo ${LW}x${LH.toFixed(0)}, claim ${Math.round(claimW)}px)`);
+  console.log(`opencloud-banner${t.suffix}.svg written (mark ${MARK_H}px, wordmark ${WORD_H}px, claim ${Math.round(claimW)}px)`);
 }
-console.log("now run gen-assets.mjs for the PNGs + CA icon + support banner");
+console.log("now run gen-assets.mjs for the PNGs");

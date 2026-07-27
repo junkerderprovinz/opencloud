@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<!--
+  Unraid Community Applications support thread for OpenCloud.
+  Structure mirrors the sister-app threads (e.g. featherdrop):
+  title -> subtitle -> banner -> badges -> What is this? -> Highlights ->
+  Requirements -> Posting a bug report -> Credits -> disclaimer.
+  Open standalone in a browser, or paste into the Unraid forum editor's source.
+  Title: [Support] junkerderprovinz - OpenCloud
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[Support] junkerderprovinz - OpenCloud</title>
+<style>
+  body { max-width: 900px; margin: 1.5rem auto; padding: 0 1rem;
+         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         line-height: 1.6; color: #1c1c1c; }
+  h1 { text-align: center; font-size: 1.7rem; margin-bottom: .2rem; }
+  .subtitle { text-align: center; color: #666; font-style: italic; margin-top: 0; }
+  h2 { margin-top: 1.9rem; font-size: 1.25rem; }
+  code { background: #f1f1f1; padding: .1em .35em; border-radius: 4px; font-size: .9em; }
+  a { color: #20434f; }
+  ul { padding-left: 1.2rem; }
+  li { margin: .25rem 0; }
+  img { border: 0; vertical-align: middle; }
+  hr { border: 0; border-top: 1px solid #ddd; margin: 2rem 0; }
+  .footnote { color: #777; font-size: .9em; font-style: italic; text-align: center; margin-top: 2rem; }
+</style>
+</head>
+<body>
+
+<h1>OpenCloud – one-click file sync &amp; share for Unraid</h1>
+<p class="subtitle">The official OpenCloud server, turned into a genuine one-click app — no console, no chown, no config editing.</p>
+
+<p align="center">
+  <a href="https://github.com/junkerderprovinz/opencloud">
+    <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/opencloud-banner-logo.png" alt="OpenCloud" width="100%">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://unraid.net/community/apps?q=opencloud"><img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/support-buttons/install-on-unraid.svg" alt="Install on Unraid" width="240"></a>
+  &nbsp;
+  <a href="https://github.com/junkerderprovinz/opencloud"><img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/support-buttons/view-on-github.svg" alt="View on GitHub" width="240"></a>
+  &nbsp;
+  <a href="https://buymeacoffee.com/junkerderprovinz"><img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/support-buttons/buy-me-a-coffee.svg" alt="Buy me a coffee" width="240"></a>
+</p>
+
+<h2>What is this?</h2>
+<p><a href="https://opencloud.eu">OpenCloud</a> is a modern, self-hosted file sync and share
+platform (the actively maintained fork of ownCloud Infinite Scale). The official image is
+great, but on Unraid it runs as a fixed non-root user with no <code>PUID</code>/<code>PGID</code>
+support and needs a manual one-time <code>init</code> step, so a fresh install normally fails
+with <em>"permission denied"</em>. This is a thin <strong>wrapper image</strong> that fixes
+exactly that: it runs the first-boot <code>init</code> for you, heals the appdata permissions,
+and drops to your chosen <code>PUID</code>/<code>PGID</code> — so you just fill in the Unraid
+template and hit Apply. Nothing is forked or modified beyond that; the OpenCloud binary is the
+official upstream image.</p>
+
+<h2>Highlights</h2>
+<ul>
+  <li><strong>Genuinely one-click</strong> — auto-runs <code>opencloud init</code> on first boot, heals root-owned appdata to your <code>PUID</code>/<code>PGID</code>, then starts the server. No console, no <code>chown</code>, no editing <code>opencloud.yaml</code></li>
+  <li><strong>Serves HTTPS itself</strong> on port 9200 (self-signed by default) — works with no reverse proxy, or hands TLS to your proxy with one setting</li>
+  <li><strong>No database</strong> — OpenCloud is not Nextcloud; there is no MySQL/Postgres to set up. State lives in a local metadata tree plus an embedded message bus</li>
+  <li><strong>Optional S3 object storage</strong> — point it at any S3-compatible bucket (MinIO, AWS, Backblaze B2, Wasabi) to keep file blobs in object storage (the metadata stays local)</li>
+  <li><strong>Two channels</strong> — a stable <code>:production</code> tag and a fast-moving <code>:rolling</code> tag, switchable from the template</li>
+  <li><strong>PUID/PGID</strong> like every well-behaved Unraid container (default 99:100)</li>
+  <li>Multi-arch — amd64 + arm64</li>
+  <li>Images: <code>junkerderprovinz/opencloud:production</code> (Docker Hub) / <code>ghcr.io/junkerderprovinz/opencloud:production</code></li>
+</ul>
+
+<h2>Requirements</h2>
+<ul>
+  <li>Unraid 6.10+</li>
+  <li>Set an <strong>Admin Password</strong> in the template before the first start (it is applied during init; log in as user <code>admin</code>)</li>
+  <li>Use a <strong>fresh, empty Data folder</strong>. Do not point Data at an old OpenCloud/oCIS data directory — the on-disk layout and the storage backend (local vs S3) are not interchangeable, and there is no in-place migration</li>
+  <li>Behind a reverse proxy: set <strong>OpenCloud terminates TLS</strong> to <code>false</code> and point your proxy at the container over plain <strong>HTTP on port 9200</strong>, with the Public URL set to your external https URL</li>
+  <li>For S3: create the bucket beforehand (the container does not), and keep backing up the local Data volume — it holds the file-tree metadata even when blobs live in S3</li>
+</ul>
+
+<h2>Posting a bug report</h2>
+<p>Please post:</p>
+<ul>
+  <li>Unraid version (Settings → System Information)</li>
+  <li>Image tag (<code>:production</code>, <code>:rolling</code>, or a pinned version)</li>
+  <li>Output of <code>docker logs --tail 200 OpenCloud</code></li>
+  <li>Whether you use S3 or local storage, and whether you run behind a reverse proxy</li>
+  <li>Whether you changed the Data/Config mounts, <code>PUID</code>/<code>PGID</code>, or the TLS settings</li>
+</ul>
+<p>GitHub issues with the same info are also welcome:
+<a href="https://github.com/junkerderprovinz/opencloud/issues">github.com/junkerderprovinz/opencloud/issues</a></p>
+
+<h2>Credits</h2>
+<p>All the real work is <a href="https://opencloud.eu">OpenCloud</a> (Apache-2.0) by the
+OpenCloud team — this project only packages their official image for one-click Unraid use, with
+a static <a href="https://github.com/tianon/gosu">gosu</a> for the privilege drop. If it saves
+you a console session, you can <a href="https://buymeacoffee.com/junkerderprovinz">buy me a coffee</a>.</p>
+
+<hr>
+
+<p class="footnote">Independent, community-maintained packaging — not affiliated with OpenCloud. The wrapper is MIT-licensed; you run it, you own your data and the responsibility.</p>
+
+</body>
+</html>

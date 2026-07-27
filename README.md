@@ -1,10 +1,3 @@
-<!-- BADGE-DIAGNOSTIC-TEST (temporary) -->
-<p align="center">
-  <a href="https://example.com"><img src="https://img.shields.io/badge/TEST-with__height36-red?style=for-the-badge" alt="with-height" height="36"></a>&nbsp;
-  <a href="https://example.com"><img src="https://img.shields.io/badge/TEST-no__height-green?style=for-the-badge" alt="no-height"></a>&nbsp;
-  <a href="https://example.com"><img src="https://img.shields.io/badge/TEST-width120-blue?style=for-the-badge" alt="width120" width="120"></a>
-</p>
-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/opencloud-banner-dark.png">

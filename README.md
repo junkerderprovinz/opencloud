@@ -161,7 +161,11 @@ OpenCloud can keep file **blobs** in any S3-compatible bucket (MinIO, AWS S3, Ba
 
 **Where those values come from:**
 
-- **MinIO (self-hosted).** Open the MinIO console (usually `http://<minio-ip>:9001`). Under **Buckets → Create Bucket** make one (e.g. `opencloud`) — that is your bucket name. Under **Access Keys → Create access key** you get an **Access Key** and a **Secret Key** — copy the secret now, it is shown only once. Point the endpoint at the **API** port `http://<minio-ip>:9000` (not the `9001` console) with region `default`.
+- **MinIO (self-hosted).** In the MinIO console click **Create Bucket** (top left) and name it (e.g. `opencloud`) — that is your bucket name. The current MinIO **Community Edition** console has **no Access Keys page** (only the object browser), so for the keys either:
+  - **Easiest:** use your MinIO **root** credentials directly — access key = `MINIO_ROOT_USER`, secret key = `MINIO_ROOT_PASSWORD` (the values you set on your MinIO container; check its Docker template).
+  - **Cleaner (dedicated, revocable key):** create a service account with the `mc` CLI — `mc alias set my http://<minio-ip>:9000 <root-user> <root-pass>` then `mc admin user svcacct add my <root-user>`, which prints a fresh **Access Key** + **Secret Key**.
+  
+  Point the endpoint at the **API** port `http://<minio-ip>:9000` (not the `9001` console) with region `default`.
 - **AWS S3 / Backblaze B2 / Wasabi.** Create a bucket in the provider console, then create an access key (AWS: an IAM access key; B2/Wasabi: an application/API key). Use the provider's `https://` endpoint and the bucket's region.
 
 > **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.

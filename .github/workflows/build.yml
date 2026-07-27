@@ -309,6 +309,9 @@ jobs:
   dockerhub-description:
     needs: merge
     if: ${{ vars.DOCKERHUB_USERNAME != '' && github.event_name != 'pull_request' }}
+    # Cosmetic README->Docker Hub sync; a credential hiccup here (e.g. 401) must
+    # never fail the image build/publish, which is the real deliverable.
+    continue-on-error: true
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (README for Docker Hub sync)

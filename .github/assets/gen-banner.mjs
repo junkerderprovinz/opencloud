@@ -1,17 +1,20 @@
 /**
- * Generates the OpenCloud README banners (house theme-adaptive pair):
- *   opencloud-banner.svg / .png      : light 1600x500 - white bg
- *   opencloud-banner-dark.svg / .png : dark  1600x500 - GitHub-dark bg
+ * Generates the OpenCloud README banners.
+ *   opencloud-banner.svg / .png      : 1600x500 - dark bg, WHITE heading
+ *   opencloud-banner-dark.svg / .png : identical (white heading needs a dark
+ *                                      ground, so both GitHub themes get it)
  *
- * The official OpenCloud logo is a combined mark+wordmark lockup. To match the
- * house banner layout (a prominent mark + the wordmark at the same size as every
- * other repo's name), it is split into its mark paths (the first 3, the hexagon)
- * and its wordmark paths (the remaining 8, "OpenCloud") - both VERBATIM from the
- * official SVG, never redrawn. The mark is rendered a little larger than the
- * wordmark; the wordmark is sized to the house name height. Each theme uses the
- * matching OFFICIAL colour variant (light = teal opencloud-logo.svg, dark =
- * lavender opencloud-logo-dark.svg), so nothing is recoloured. The claim is Lato
- * (OFL) in the standard grey, converted to paths so the SVG needs no font.
+ * jdp OVERRIDE of the house theme-flip (documented per-repo exception): a single
+ * dark banner with a WHITE heading in BOTH GitHub themes - jdp asked repeatedly
+ * for "ueberschrift weiss, logo groesser, claim unter die ueberschrift".
+ *
+ * The official OpenCloud logo is a combined mark+wordmark lockup. It is split
+ * into its mark paths (the hexagon) and its wordmark paths ("OpenCloud"),
+ * classified by X POSITION (the paths are NOT ordered mark-then-wordmark) - both
+ * VERBATIM from the official SVG, never redrawn, only recoloured white. The mark
+ * is rendered clearly larger than the wordmark; the wordmark is sized to the
+ * house name height. The claim is Lato (OFL) in grey, converted to paths so the
+ * SVG needs no font.
  *
  * Deps: `npm i -g @resvg/resvg-js opentype.js`. Run:
  *   node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
@@ -34,12 +37,18 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const CLAIM = "Your files. Your cloud. Your terms.";
 const W = 1600, H = 500;
 const WORD_H = 120;      // wordmark height in px - the house name size
-const MARK_H = 188;      // mark a little larger than the wordmark (jdp)
-const GAP = 46;          // gap between mark and wordmark
+const MARK_H = 224;      // mark clearly larger than the wordmark (jdp: "logo groesser")
+const GAP = 48;          // gap between mark and wordmark
 const claimSize = 40, lineGap = 34;
+// jdp OVERRIDE of the house theme-flip (documented per-repo exception): a single
+// dark banner with a WHITE heading in BOTH GitHub themes (jdp, repeatedly: "die
+// ueberschrift bitte weiss, das logo groesser, der claim unter die ueberschrift").
+// White heading needs a dark ground, so both variants use GitHub-dark #0d1117 with
+// the official logo recoloured white (geometry verbatim, colour only).
+const SRC_LOGO = "opencloud-logo.svg";
 const THEMES = [
-  { suffix: "",      bg: "#ffffff", logo: "opencloud-logo.svg",      claim: "#5a5d5e" },
-  { suffix: "-dark", bg: "#0d1117", logo: "opencloud-logo-dark.svg", claim: "#9aa4ad" },
+  { suffix: "",      bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
+  { suffix: "-dark", bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
 ];
 // ---------------------------------------------------------------------------
 
@@ -88,8 +97,10 @@ function place(inner, bb, x, y, h) {
   };
 }
 
+const L = parseLogo(SRC_LOGO);
 for (const t of THEMES) {
-  const L = parseLogo(t.logo);
+  // Recolour the official teal geometry to the theme's logo colour (white).
+  const recolor = (s) => s.replace(/#[0-9a-fA-F]{6}/g, t.logoColor);
   const markW = MARK_H * (L.markBB.width / L.markBB.height);
   const wordW = WORD_H * (L.wordBB.width / L.wordBB.height);
 
@@ -102,8 +113,8 @@ for (const t of THEMES) {
 
   const markY = top + (rowH - MARK_H) / 2;
   const wordY = top + (rowH - WORD_H) / 2;
-  const mark = place(L.mark, L.markBB, startX, markY, MARK_H);
-  const word = place(L.word, L.wordBB, startX + markW + GAP, wordY, WORD_H);
+  const mark = place(recolor(L.mark), L.markBB, startX, markY, MARK_H);
+  const word = place(recolor(L.word), L.wordBB, startX + markW + GAP, wordY, WORD_H);
 
   const claimBaseline = top + rowH + lineGap + claimAsc;
   const claimX = (W - claimW) / 2;

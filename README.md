@@ -242,6 +242,14 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 ## 9. Troubleshooting
 
+### Crash loop with `search: cannot open index, metadata missing`
+
+The container starts, heals ownership, then crash-loops and the WebUI never comes up. This means the **Data** volume is pointing at a **non-fresh** OpenCloud/oCIS data directory — an old install, or a data set created with a different storage backend (local vs S3). The layouts are not interchangeable and there is **no in-place migration between backends**, so the `search` service can't open its index and takes the whole server down.
+
+Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image — a clean data dir boots normally, S3 included.
+
+
+
 <details>
 <summary><b>First start seems stuck / WebUI not reachable yet</b></summary>
 

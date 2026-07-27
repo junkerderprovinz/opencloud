@@ -34,14 +34,16 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 
 // ---- content + styling -----------------------------------------------------
 const CLAIM = "Your files. Your cloud. Your terms.";
-// Theme-adaptive pair (house rule): light + dark, served via <picture>. Each
-// theme embeds the matching OFFICIAL logo variant so the wordmark always reads.
+// jdp wants the OpenCloud wordmark ALWAYS white -> a single branded banner on the
+// OpenCloud brand teal, with a white logo (recolored from the official teal SVG,
+// geometry verbatim). Both <picture> variants use it, so the heading is white in
+// GitHub's light AND dark themes.
 const THEMES = [
-  { suffix: "",      bg: "#ffffff", logo: "opencloud-logo.svg",      claim: "#5a5d5e" },
-  { suffix: "-dark", bg: "#0d1117", logo: "opencloud-logo-dark.svg", claim: "#9aa4ad" },
+  { suffix: "",      bg: "#20434f", logo: "opencloud-logo-white.svg", claim: "#b9ccd1" },
+  { suffix: "-dark", bg: "#20434f", logo: "opencloud-logo-white.svg", claim: "#b9ccd1" },
 ];
 const W = 1600, H = 500;
-const LOGO_W = 1060;                // rendered logo+wordmark width (larger, prominent)
+const LOGO_W = 1140;                // rendered logo+wordmark width (large, prominent)
 const claimSize = 40, lineGap = 34; // claim sits as a subtitle directly under the heading
 // ---------------------------------------------------------------------------
 

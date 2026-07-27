@@ -68,6 +68,16 @@ This image is a **thin wrapper** around the official one that fixes exactly thos
 
 The wrapper does **not** fork, patch or repackage OpenCloud itself — it layers a tiny entrypoint on top of the unmodified upstream image, so you always run real, current OpenCloud.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/files.png" alt="OpenCloud web UI — the file browser" width="92%">
+  <br><em>The OpenCloud web UI: your personal space with files, folders and spaces.</em>
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/login.png" alt="OpenCloud sign-in page" width="72%">
+  <br><em>Sign in as <code>admin</code> with the password you set in the Unraid template.</em>
+</p>
+
 <br>
 
 ## 2. Quick Start

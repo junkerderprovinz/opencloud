@@ -216,6 +216,8 @@ By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificat
 - set **`OC_INSECURE=false`** (your proxy presents a valid certificate),
 - point the proxy upstream at the container's port `9200`.
 
+**Desktop or mobile client login returns `403 Forbidden` while the browser works?** The native clients sign in through a loopback OIDC redirect (`redirect_uri=http://127.0.0.1:<port>`, per RFC 8252). Many reverse-proxy "block exploits" filters reject a literal `http://` inside a query string. In **NGINX Proxy Manager** this is the **"Block Common Exploits"** toggle: its `block-exploits.conf` contains `if ($query_string ~ "[a-zA-Z0-9_]=http://") { return 403; }`. The web UI avoids it (its redirect is URL-encoded), the desktop client trips it (plain `http://` loopback). Switch that toggle **off** for the OpenCloud host and the client login succeeds. OpenCloud brings its own auth and CSRF protection, so the crude regex filter is redundant here.
+
 <br>
 
 ## 7. Building Locally

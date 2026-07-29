@@ -13,7 +13,7 @@
   <a href="https://github.com/junkerderprovinz/opencloud/pkgs/container/opencloud"><img src="https://img.shields.io/badge/Arch-amd64%20%7C%20arm64-success?style=for-the-badge&logo=linux&logoColor=white" alt="Arch" height="36"></a>&nbsp;
   <a href="https://opencloud.eu"><img src="https://img.shields.io/badge/Upstream-OpenCloud-20434f?style=for-the-badge&logo=owncloud&logoColor=white" alt="OpenCloud" height="36"></a>&nbsp;
   <a href="https://unraid.net"><img src="https://img.shields.io/badge/Unraid-Template-f15a2c?style=for-the-badge&logo=unraid&logoColor=white" alt="Unraid" height="36"></a>&nbsp;
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="License" height="36"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge&logo=gnu&logoColor=white" alt="License: AGPL-3.0" height="36"></a>
 </p>
 
 <br>
@@ -49,6 +49,7 @@ no <code>chown</code>, no config-file editing required.
 10. [Architecture](#10-architecture)
 11. [Contributing / License](#11-contributing--license)
 12. [Support this project](#12-support-this-project)
+13. [License](#13-license)
 <br>
 
 ## 1. Overview
@@ -320,8 +321,8 @@ Pull requests welcome. Issues: <https://github.com/junkerderprovinz/opencloud/is
 
 **Licensing — dual:**
 
-- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, Unraid template, README and banner/icon artwork) is licensed under the [MIT License](LICENSE).
-- **OpenCloud itself** and the bundled `gosu` binary are **Apache-2.0**; the Alpine base and its packages keep their own licenses. When you run, redistribute or rebuild the resulting image you must comply with **all** of those, not only this wrapper's MIT license. See [`NOTICE`](NOTICE).
+- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+- **OpenCloud itself** and the bundled `gosu` binary are **Apache-2.0**; the Alpine base and its packages keep their own licenses. When you run, redistribute or rebuild the resulting image you must comply with **all** of those, not only this wrapper's AGPL-3.0 license. See [`NOTICE`](NOTICE).
 
 The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodified to identify the upstream project. This is an independent, community-maintained packaging and is **not affiliated with or endorsed by OpenCloud GmbH**.
 
@@ -341,3 +342,13 @@ If this template saves you a setup hassle or a debug night, consider buying me a
     <img src=".github/assets/button-buy-me-a-coffee.svg" alt="Buy me a coffee" width="220">
   </a>
 </p>
+
+<br>
+
+## 13. License
+
+**Copyright (C) 2026 Junker der Provinz.**
+
+This repository packages OpenCloud as a container for Unraid. The packaging in this repository (Dockerfile, scripts, theme, web assets and everything else original here) is free software under the **GNU Affero General Public License v3.0** (AGPL-3.0); see [LICENSE](LICENSE). If you distribute it, or run a modified version as a network service, you must release your source under the same AGPL-3.0 terms and keep the existing copyright and attribution notices intact.
+
+**Scope.** The AGPL applies to this repository's own code and assets. OpenCloud itself is a separate project under its own license and name; this repository does not claim it. The banner, logo, theme and other branding original to this repository remain reserved: a fork must use its own branding and may not present itself as this project.

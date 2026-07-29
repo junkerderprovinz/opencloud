@@ -1,7 +1,7 @@
 NOTICE - Bundled Software in the OpenCloud Unraid Wrapper Image
 ===============================================================
 
-The MIT License (see LICENSE) covers ONLY the wrapper assets in this
+The GNU Affero General Public License v3.0 (AGPL-3.0, see LICENSE) covers ONLY the wrapper assets in this
 repository:
   * Dockerfile
   * entrypoint.sh and print-banner.sh
@@ -22,10 +22,10 @@ Brand artwork
 -------------
 The OpenCloud logo, wordmark and favicon in .github/assets/ are the property of
 OpenCloud GmbH and are used unmodified to identify the upstream project. They are
-NOT covered by this repository's MIT license and remain subject to OpenCloud's
+NOT covered by this repository's AGPL-3.0 license and remain subject to OpenCloud's
 trademark/brand terms. This is an independent, community-maintained packaging of
 OpenCloud for Unraid and is not affiliated with or endorsed by OpenCloud GmbH.
 
 When you run, redistribute or rebuild the resulting container image, you must
-comply with the licenses of all bundled components in addition to the MIT license
+comply with the licenses of all bundled components in addition to the AGPL-3.0 license
 that covers this repository.

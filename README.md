@@ -187,6 +187,20 @@ MinIO note: if uploads fail with a checksum error on a non-AWS endpoint, add `ST
 
 <br>
 
+### Web office (optional)
+
+OpenCloud can edit documents in the browser, but it ships no office engine: it speaks the **WOPI** protocol to a **separate document-server container**. This wrapper wires that up from three template fields (all advanced, default off).
+
+1. **Run a document server** (its own container):
+   - **Collabora Online (CODE)** — image `collabora/code`. Set its `aliasgroup1` to your OpenCloud URL (its WOPI host allowlist), e.g. `aliasgroup1=https://cloud.example.com`.
+   - **OnlyOffice / Euro Office Document Server** — the OnlyOffice `documentserver` image (Euro Office is OpenCloud's OnlyOffice-based build).
+2. **Point OpenCloud at it:** set **Web office suite** to `collabora` or `onlyoffice`, **Office document server URL** to the server's browser-reachable URL, and an **Office WOPI secret** (any long random string).
+3. **Reverse proxy:** forward `/wopi` and `/collaboration` to OpenCloud on port 9200, and make sure OpenCloud and the document server can reach each other over the network.
+
+Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service (`OC_ADD_RUN_SERVICES=collaboration`), sets the `COLLABORATION_*` variables, registers it as the secure-view/edit handler and exposes the secure-view role. Leave **Web office suite** on `off` (the default) if you do not need document editing.
+
+<br>
+
 ## 4. Production vs Rolling
 
 Two channels are built from this wrapper, differing only in the upstream base image:

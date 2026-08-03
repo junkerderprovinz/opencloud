@@ -85,6 +85,42 @@ export OC_URL
 export OC_INSECURE="${OC_INSECURE:-true}"
 export PROXY_TLS="${PROXY_TLS:-true}"
 
+# --- optional web-office (WOPI) wiring ---------------------------------------
+# OFFICE selects a browser document editor: off (default) | collabora | onlyoffice.
+# The document server ALWAYS runs as a SEPARATE container (Collabora CODE, or an
+# OnlyOffice/Euro Office Document Server); this only turns on OpenCloud's built-in
+# 'collaboration' (WOPI) service and points it at that server. OFFICE_SERVER_URL =
+# the browser-reachable URL of that container; OFFICE_WOPI_SECRET = a shared secret.
+# Values verified against opencloud-compose weboffice/collabora.yml. Default off, so
+# a normal install is unaffected.
+_office="$(printf '%s' "${OFFICE:-off}" | tr '[:upper:]' '[:lower:]')"
+case "${_office}" in
+    collabora)                               _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
+    onlyoffice|euro-office|eurooffice)        _oc_app_name="OnlyOffice";      _oc_app_product="OnlyOffice" ;;
+    *)                                        _oc_app_name="" ;;
+esac
+if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
+    # append 'collaboration' to the supervised services, preserving any user value
+    export OC_ADD_RUN_SERVICES="${OC_ADD_RUN_SERVICES:+${OC_ADD_RUN_SERVICES},}collaboration"
+    export COLLABORATION_APP_NAME="${_oc_app_name}"
+    export COLLABORATION_APP_PRODUCT="${_oc_app_product}"
+    export COLLABORATION_APP_ADDR="${OFFICE_SERVER_URL}"
+    export COLLABORATION_WOPI_SRC="${OC_URL}"
+    [ -n "${OFFICE_WOPI_SECRET:-}" ] && export COLLABORATION_WOPI_SECRET="${OFFICE_WOPI_SECRET}"
+    # tolerate self-signed certs on the doc server + internal data gateway (LAN default)
+    export COLLABORATION_APP_INSECURE="${COLLABORATION_APP_INSECURE:-true}"
+    export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"
+    # OnlyOffice signs with its own JWT rather than Collabora-style proof keys
+    [ "${_oc_app_product}" = "OnlyOffice" ] && export COLLABORATION_APP_PROOF_DISABLE="${COLLABORATION_APP_PROOF_DISABLE:-true}"
+    # register the collaboration app as the secure-view/edit handler + expose the
+    # secure-view role (exact default role set incl. secure-view, from opencloud-compose)
+    export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
+    export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
+    echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on)"
+elif [ -n "${_oc_app_name}" ]; then
+    echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office NOT enabled"
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. Idempotent: on later boots the file exists and init exits
 # non-zero, which we deliberately ignore (|| true).

@@ -93,11 +93,14 @@ export PROXY_TLS="${PROXY_TLS:-true}"
 # the browser-reachable URL of that container; OFFICE_WOPI_SECRET = a shared secret.
 # Values verified against opencloud-compose weboffice/collabora.yml. Default off, so
 # a normal install is unaffected.
+# Euro Office is an ONLYOFFICE fork, so it is driven as the "OnlyOffice" product with
+# its own display name (verified against opencloud-compose weboffice/euro-office.yml).
 _office="$(printf '%s' "${OFFICE:-off}" | tr '[:upper:]' '[:lower:]')"
 case "${_office}" in
-    collabora)                               _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
-    onlyoffice|euro-office|eurooffice)        _oc_app_name="OnlyOffice";      _oc_app_product="OnlyOffice" ;;
-    *)                                        _oc_app_name="" ;;
+    collabora)                 _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
+    onlyoffice)                _oc_app_name="OnlyOffice";      _oc_app_product="OnlyOffice" ;;
+    euro-office|eurooffice)    _oc_app_name="Euro-Office";     _oc_app_product="OnlyOffice" ;;
+    *)                         _oc_app_name="" ;;
 esac
 if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     # append 'collaboration' to the supervised services, preserving any user value

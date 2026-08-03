@@ -192,9 +192,10 @@ MinIO note: if uploads fail with a checksum error on a non-AWS endpoint, add `ST
 OpenCloud can edit documents in the browser, but it ships no office engine: it speaks the **WOPI** protocol to a **separate document-server container**. This wrapper wires that up from three template fields (all advanced, default off).
 
 1. **Run a document server** (its own container):
-   - **Collabora Online (CODE)** — image `collabora/code`. Set its `aliasgroup1` to your OpenCloud URL (its WOPI host allowlist), e.g. `aliasgroup1=https://cloud.example.com`.
-   - **OnlyOffice / Euro Office Document Server** — the OnlyOffice `documentserver` image (Euro Office is OpenCloud's OnlyOffice-based build).
-2. **Point OpenCloud at it:** set **Web office suite** to `collabora` or `onlyoffice`, **Office document server URL** to the server's browser-reachable URL, and an **Office WOPI secret** (any long random string).
+   - **Euro Office** (`euro-office`) — the sovereign OnlyOffice fork, image `ghcr.io/euro-office/documentserver`, port 80. Set `WOPI_ENABLED=true`. There is a one-click Unraid template for it in the [junkerderprovinz feed](https://github.com/junkerderprovinz/unraid-apps) (search **Euro Office** in Community Applications). OpenCloud itself makes Euro Office the default editor for MS formats (docx/xlsx/pptx).
+   - **Collabora Online (CODE)** (`collabora`) — image `collabora/code`, port 9980. A maintained community CA template exists (search **Collabora** in Community Applications); set its WOPI host allowlist (`aliasgroup1` / `domain`) to your OpenCloud URL. Best for ODF (odt/ods/odp).
+   - **OnlyOffice Document Server** (`onlyoffice`) — image `onlyoffice/documentserver`, port 80; set `WOPI_ENABLED=true`. A community CA template exists.
+2. **Point OpenCloud at it:** set **Web office suite** to `euro-office`, `collabora` or `onlyoffice`, **Office document server URL** to the server's browser-reachable URL, and an **Office WOPI secret**. For OnlyOffice and Euro Office that secret **must equal the document server's JWT secret** (`JWT_SECRET` / `EURO_OFFICE_JWT_SECRET`); for Collabora it is not required.
 3. **Reverse proxy:** forward `/wopi` and `/collaboration` to OpenCloud on port 9200, and make sure OpenCloud and the document server can reach each other over the network.
 
 Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service (`OC_ADD_RUN_SERVICES=collaboration`), sets the `COLLABORATION_*` variables, registers it as the secure-view/edit handler and exposes the secure-view role. Leave **Web office suite** on `off` (the default) if you do not need document editing.

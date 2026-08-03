@@ -59,12 +59,45 @@ fi
 # data volume instead of the image's /root.
 export HOME="${DATA_DIR}"
 
+# --- external URL / TLS defaults --------------------------------------------
+# OC_URL is the public URL clients use AND the built-in IDP's OIDC issuer, so it
+# must be a valid https URL. Unraid only substitutes its [IP]/[PORT] tokens in the
+# template's WebUI field, NOT in env vars - a template default like
+# https://[IP]:[PORT:9200] therefore arrives here verbatim and crashes the reva
+# gateway ("invalid IP-literal"). If OC_URL is empty or still holds a bracket /
+# placeholder value, derive a usable one from the container's own IP so the server
+# boots instead of crash-looping. Set OC_URL to your real server (or reverse-proxy)
+# address for logins to work from every client.
+case "${OC_URL:-}" in
+    ""|*"["*|*YOUR-SERVER-IP*)
+        _ip="$(hostname -i 2>/dev/null | awk '{print $1}')"
+        [ -z "${_ip}" ] && _ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+        [ -z "${_ip}" ] && _ip="localhost"
+        OC_URL="https://${_ip}:9200"
+        echo "[entrypoint] WARNING: OC_URL was unset or still a placeholder -> using ${OC_URL}."
+        echo "[entrypoint]          Set the 'Public URL' to your real server address (or reverse-proxy URL) so client logins work everywhere."
+        ;;
+esac
+export OC_URL
+# Direct-install defaults: OpenCloud serves its own (self-signed) HTTPS on 9200 and
+# tolerates that cert on its internal self-calls. A reverse-proxy setup overrides
+# both of these to false in the template.
+export OC_INSECURE="${OC_INSECURE:-true}"
+export PROXY_TLS="${PROXY_TLS:-true}"
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. Idempotent: on later boots the file exists and init exits
-# non-zero, which we deliberately ignore.
+# non-zero, which we deliberately ignore (|| true).
+#
+# 'opencloud init' reads --insecure, a STRING flag whose default value "ask" opens
+# an interactive stdin prompt. In a container with no TTY that prompt never gets an
+# answer and spins forever (it loops on EOF), so the wrapper hangs on a fresh
+# install. We ALWAYS pass an explicit value so it can never be "ask", and redirect
+# stdin from /dev/null as belt-and-suspenders. Do NOT add --force-overwrite: it
+# regenerates every service secret and the admin password on each boot.
 echo "[entrypoint] running 'opencloud init' (harmless error if already initialised)"
 # shellcheck disable=SC2086
-${DROP} opencloud init || true
+${DROP} opencloud init --insecure "${OC_INSECURE}" </dev/null || true
 
 # House ready banner - the LAST block this wrapper prints before handing off to
 # the OpenCloud server (which then streams its own logs).

@@ -140,7 +140,7 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | Variable | Default | Description |
 |---|---|---|
 | `IDM_ADMIN_PASSWORD` | *(required)* | Password for the built-in `admin` user — applied on first init. **Set this.** |
-| `OC_URL` | `https://[IP]:[PORT:9200]` | Public URL clients use to reach OpenCloud. Set to your proxied hostname behind a reverse proxy. |
+| `OC_URL` | `https://192.168.1.10:9200` | **Required.** Public URL clients use to reach OpenCloud, and the OIDC login issuer — must be `https`. Set your server's real LAN `IP:9200`, or your external hostname behind a reverse proxy. Unraid does not auto-fill this. |
 | `OC_INSECURE` | `true` | Accept the container's self-signed cert. Set `false` when a proxy provides a valid cert. |
 | `OC_LOG_LEVEL` | `info` | Log verbosity — `info`, `warn`, `error`, `debug`. |
 | `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
@@ -153,17 +153,19 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `9200` | HTTPS WebUI / API (self-signed by default) | | `/etc/opencloud` | Config (`opencloud.yaml` + secrets) |
 | | | | `/var/lib/opencloud` | Data — user files, index, `nats` bus |
 
-> **No database.** OpenCloud is *not* Nextcloud — it has no MySQL/Postgres and needs none. State lives in the decomposed metadata tree on the `/var/lib/opencloud` volume plus an embedded NATS bus. Don't add a database container; there's nothing to point it at.
+> **No database.** OpenCloud is *not* Nextcloud — it has no MySQL/Postgres and needs none. State lives in the local storage tree on the `/var/lib/opencloud` volume plus an embedded NATS bus. Don't add a database container; there's nothing to point it at.
+
+> **Files show up but are greyed out / won't open?** The storage driver is wrong. Keep `STORAGE_USERS_DRIVER=posix` (the default) — never leave it blank and never use `local`; both leave files visible but unreadable. Also make sure the Data volume is on a filesystem with extended-attribute support (the Unraid array and cache/pool disks have it). The driver is fixed at first init — to change it, start with a fresh Data folder.
 
 <br>
 
 ### S3 object storage (optional)
 
-OpenCloud can keep file **blobs** in any S3-compatible bucket (MinIO, AWS S3, Backblaze B2, Wasabi) while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables — leave them unset for normal local storage.
+OpenCloud can keep file **blobs** in any S3-compatible bucket (MinIO, AWS S3, Backblaze B2, Wasabi) while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage — do **not** leave it blank.
 
 | Variable | Example | Description |
 |---|---|---|
-| `STORAGE_USERS_DRIVER` | `decomposeds3` | Switches blob storage to S3. Unset = local storage (default). |
+| `STORAGE_USERS_DRIVER` | `decomposeds3` | Set to `decomposeds3` for S3 blob storage. Default is `posix` (local) — never leave it blank or use `local`, both grey out files. |
 | `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:9000` | S3 endpoint. Internal `http://` URL for self-hosted MinIO; the provider's `https://` endpoint for AWS/B2/Wasabi. |
 | `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` for most MinIO installs; the provider region (`us-east-1`, …) otherwise. |
 | `STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY` | `…` | Access key ID. |

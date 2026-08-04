@@ -38,7 +38,7 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 const CLAIM = "Your files. Your cloud. Your terms.";
 const W = 1600, H = 500;
 const WORD_H = 132;      // wordmark = the house name size
-const MARK_H = 300;      // mark = the house logo height
+const MARK_H = 400;      // mark = the house logo height (jdp-approved big logo)
 const GAP = 70;          // gap between the mark (logo) and the wordmark
 const claimSize = 44, lineGap = 8;
 // House banner standard (theme-flip): the official OpenCloud lockup keeps its brand
@@ -103,20 +103,18 @@ for (const t of THEMES) {
   const markW = MARK_H * (L.markBB.width / L.markBB.height);
   const wordW = WORD_H * (L.wordBB.width / L.wordBB.height);
 
-  // Group = [mark] GAP [wordmark], vertically centred on each other; claim below.
-  const rowH = Math.max(MARK_H, WORD_H);
-  const groupW = markW + GAP + wordW;
-  const blockH = rowH + lineGap + claimAsc + claimDesc;
-  const top = (H - blockH) / 2;
+  // Mark (logo) vertically centred at H/2; the [wordmark + claim] text block also
+  // centred at H/2 to its right (house standard: the logo and the text each centre
+  // on the middle, so the big mark no longer drags the wordmark upward).
   const startX = 165; // left-anchored (house banner standard)
-
-  const markY = top + (rowH - MARK_H) / 2;
-  const wordY = top + (rowH - WORD_H) / 2;
+  const markY = (H - MARK_H) / 2;
   const mark = place(recolor(L.mark), L.markBB, startX, markY, MARK_H);
-  const word = place(recolor(L.word), L.wordBB, startX + markW + GAP, wordY, WORD_H);
-
-  const claimBaseline = top + rowH + lineGap + claimAsc;
-  const claimX = startX + markW + GAP; // claim left-aligned with the wordmark
+  const textBlockH = WORD_H + lineGap + claimAsc + claimDesc;
+  const textTop = (H - textBlockH) / 2;
+  const wordX = startX + markW + GAP;
+  const word = place(recolor(L.word), L.wordBB, wordX, textTop, WORD_H);
+  const claimBaseline = textTop + WORD_H + lineGap + claimAsc;
+  const claimX = wordX; // claim left-aligned with the wordmark
   const claimPath = claimFont.getPath(CLAIM, claimX, claimBaseline, claimSize).toPathData(2);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="OpenCloud">

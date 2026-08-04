@@ -1,12 +1,13 @@
 /**
- * Generates the OpenCloud README banners.
- *   opencloud-banner.svg / .png      : 1600x500 - dark bg, WHITE heading
- *   opencloud-banner-dark.svg / .png : identical (white heading needs a dark
- *                                      ground, so both GitHub themes get it)
+ * Generates the OpenCloud README banners (theme-adaptive pair):
+ *   opencloud-banner.svg / .png      : 1600x500 - white bg, teal official lockup
+ *   opencloud-banner-dark.svg / .png : GitHub-dark #0d1117, lockup recoloured white
+ * The README serves the pair via <picture> (prefers-color-scheme).
  *
- * jdp OVERRIDE of the house theme-flip (documented per-repo exception): a single
- * dark banner with a WHITE heading in BOTH GitHub themes - jdp asked repeatedly
- * for "ueberschrift weiss, logo groesser, claim unter die ueberschrift".
+ * House banner standard (theme-flip). The official OpenCloud lockup keeps its
+ * brand colour - teal (#20434F) on the white banner, white on the dark banner -
+ * left-anchored, with a grey claim under the wordmark. (Earlier this was a jdp
+ * dark-only exception; standardised 2026-08-04.)
  *
  * The official OpenCloud logo is a combined mark+wordmark lockup. It is split
  * into its mark paths (the hexagon) and its wordmark paths ("OpenCloud"),
@@ -36,18 +37,16 @@ const __dir = dirname(fileURLToPath(import.meta.url));
 // ---- content + sizing ------------------------------------------------------
 const CLAIM = "Your files. Your cloud. Your terms.";
 const W = 1600, H = 500;
-const WORD_H = 120;      // wordmark height in px - the house name size
-const MARK_H = 224;      // mark clearly larger than the wordmark (jdp: "logo groesser")
-const GAP = 48;          // gap between mark and wordmark
-const claimSize = 40, lineGap = 34;
-// jdp OVERRIDE of the house theme-flip (documented per-repo exception): a single
-// dark banner with a WHITE heading in BOTH GitHub themes (jdp, repeatedly: "die
-// ueberschrift bitte weiss, das logo groesser, der claim unter die ueberschrift").
-// White heading needs a dark ground, so both variants use GitHub-dark #0d1117 with
-// the official logo recoloured white (geometry verbatim, colour only).
+const WORD_H = 132;      // wordmark = the house name size
+const MARK_H = 300;      // mark = the house logo height
+const GAP = 70;          // gap between the mark (logo) and the wordmark
+const claimSize = 44, lineGap = 8;
+// House banner standard (theme-flip): the official OpenCloud lockup keeps its brand
+// colour - teal (#20434F) on the white banner, recoloured white on the dark banner;
+// claim in grey. (Earlier a jdp dark-only exception; standardised 2026-08-04.)
 const SRC_LOGO = "opencloud-logo.svg";
 const THEMES = [
-  { suffix: "",      bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
+  { suffix: "",      bg: "#ffffff", logoColor: "#20434F", claim: "#5a5d5e" },
   { suffix: "-dark", bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
 ];
 // ---------------------------------------------------------------------------
@@ -109,7 +108,7 @@ for (const t of THEMES) {
   const groupW = markW + GAP + wordW;
   const blockH = rowH + lineGap + claimAsc + claimDesc;
   const top = (H - blockH) / 2;
-  const startX = (W - groupW) / 2;
+  const startX = 165; // left-anchored (house banner standard)
 
   const markY = top + (rowH - MARK_H) / 2;
   const wordY = top + (rowH - WORD_H) / 2;
@@ -117,7 +116,7 @@ for (const t of THEMES) {
   const word = place(recolor(L.word), L.wordBB, startX + markW + GAP, wordY, WORD_H);
 
   const claimBaseline = top + rowH + lineGap + claimAsc;
-  const claimX = (W - claimW) / 2;
+  const claimX = startX + markW + GAP; // claim left-aligned with the wordmark
   const claimPath = claimFont.getPath(CLAIM, claimX, claimBaseline, claimSize).toPathData(2);
 
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="OpenCloud">

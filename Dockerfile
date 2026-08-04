@@ -47,7 +47,7 @@ USER root
 LABEL org.opencontainers.image.title="opencloud (Unraid wrapper)" \
       org.opencontainers.image.description="One-click OpenCloud for Unraid: auto-init, permission heal, PUID/PGID." \
       org.opencontainers.image.source="https://github.com/junkerderprovinz/opencloud" \
-      org.opencontainers.image.licenses="Apache-2.0 AND MIT" \
+      org.opencontainers.image.licenses="AGPL-3.0-only" \
       org.opencontainers.image.vendor="junkerderprovinz"
 
 # Static gosu + our init wrapper + the shared house log banner.

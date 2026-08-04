@@ -64,6 +64,7 @@ official upstream image.</p>
   <li><strong>Serves HTTPS itself</strong> on port 9200 (self-signed by default) — works with no reverse proxy, or hands TLS to your proxy with one setting</li>
   <li><strong>No database</strong> — OpenCloud is not Nextcloud; there is no MySQL/Postgres to set up. State lives in a local metadata tree plus an embedded message bus</li>
   <li><strong>Optional S3 object storage</strong> — point it at any S3-compatible bucket (MinIO, AWS, Backblaze B2, Wasabi) to keep file blobs in object storage (the metadata stays local)</li>
+  <li><strong>Web office (optional):</strong> edit documents in the browser via a separate editor container. New: <strong>Euro Office</strong>, the sovereign, OnlyOffice-compatible document server, alongside Collabora and OnlyOffice. Flip it on in the template and point it at the editor</li>
   <li><strong>Two channels</strong> — a stable <code>:production</code> tag and a fast-moving <code>:rolling</code> tag, switchable from the template</li>
   <li><strong>PUID/PGID</strong> like every well-behaved Unraid container (default 99:100)</li>
   <li>Multi-arch — amd64 + arm64</li>
@@ -77,6 +78,14 @@ official upstream image.</p>
   <li>Use a <strong>fresh, empty Data folder</strong>. Do not point Data at an old OpenCloud/oCIS data directory — the on-disk layout and the storage backend (local vs S3) are not interchangeable, and there is no in-place migration</li>
   <li>Behind a reverse proxy: set <strong>OpenCloud terminates TLS</strong> to <code>false</code> and point your proxy at the container over plain <strong>HTTP on port 9200</strong>, with the Public URL set to your external https URL</li>
   <li>For S3: create the bucket beforehand (the container does not), and keep backing up the local Data volume — it holds the file-tree metadata even when blobs live in S3</li>
+</ul>
+
+<h2>Web office (optional)</h2>
+<p>OpenCloud can open and edit Word, Excel, PowerPoint and OpenDocument files in the browser. The editor runs as a <strong>separate document-server container</strong>; the template only switches on OpenCloud's built-in WOPI service and wires it up.</p>
+<ul>
+  <li>Pick your editor in the template's <strong>Web office suite</strong> field: <code>euro-office</code> (the sovereign, European, OnlyOffice-compatible server), <code>collabora</code>, or <code>onlyoffice</code></li>
+  <li>Install the matching document server. There is a ready <strong>Euro Office</strong> template in this same Community Applications feed (search for <em>Euro Office</em>)</li>
+  <li>Set <strong>Office document server URL</strong> to the editor's address, and make the <strong>Office WOPI secret</strong> equal to the document server's JWT secret (the two must match)</li>
 </ul>
 
 <h2>Posting a bug report</h2>

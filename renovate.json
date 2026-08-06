@@ -13,26 +13,20 @@
   "prConcurrentLimit": 6,
   "packageRules": [
     {
-      "description": "OpenCloud production base image (:production channel) - auto-merge so the wrapper always tracks the newest production release. No CI on PRs, so platformAutomerge merges on open; the box only upgrades when the user pulls in Unraid.",
+      "description": "OpenCloud production base image (:production channel) - group + label; PR only, manual review (consistent with the other repos). OpenCloud is stateful and versions can migrate data, so a human merges each bump after a glance at the release notes.",
       "matchPackageNames": ["opencloudeu/opencloud"],
       "groupName": "OpenCloud production base",
       "commitMessageTopic": "OpenCloud production base",
       "commitMessagePrefix": "feat:",
-      "labels": ["base-image"],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
+      "labels": ["base-image"]
     },
     {
-      "description": "OpenCloud rolling base image (:rolling channel) - auto-merge so the wrapper always tracks the newest rolling release (the channel that carries reva#720 / the large-folder-sync fix). No CI on PRs, so platformAutomerge merges on open; the box only upgrades when the user pulls in Unraid.",
+      "description": "OpenCloud rolling base image (:rolling channel, carries reva#720 / the large-folder-sync fix) - group + label; PR only, manual review (consistent with the other repos). OpenCloud is stateful and versions can migrate data, so a human merges each bump after a glance at the release notes.",
       "matchPackageNames": ["opencloudeu/opencloud-rolling"],
       "groupName": "OpenCloud rolling base",
       "commitMessageTopic": "OpenCloud rolling base",
       "commitMessagePrefix": "feat:",
-      "labels": ["base-image"],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true
+      "labels": ["base-image"]
     },
     {
       "description": "Static gosu privilege-drop helper image (multi-stage COPY --from)",

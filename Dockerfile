@@ -17,7 +17,7 @@
 # TWO CHANNELS (selected with --build-arg BASE=...):
 #   :production  ->  opencloudeu/opencloud:7.2.3          (default, BASE below)
 #   :rolling     ->  opencloudeu/opencloud-rolling:7.4.0  (BASE_ROLLING, CI reads it)
-# Renovate tracks BOTH pins and auto-merges the bumps - see renovate.json.
+# Renovate tracks BOTH pins and opens a PR per bump for manual review - see renovate.json.
 #
 # NOTE: the :production line (7.2.x) is OpenCloud's slow, stable train and does
 # NOT yet carry reva#720 (the incremental-fsync fix for large-folder sync aborts,

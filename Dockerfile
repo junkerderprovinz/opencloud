@@ -15,9 +15,15 @@
 #     privileges to that user for the server via a static, dependency-free gosu
 #
 # TWO CHANNELS (selected with --build-arg BASE=...):
-#   :production  ->  opencloudeu/opencloud:7.2.2          (default, BASE below)
-#   :rolling     ->  opencloudeu/opencloud-rolling:7.3.0  (BASE_ROLLING, CI reads it)
-# Renovate tracks BOTH pins - see renovate.json.
+#   :production  ->  opencloudeu/opencloud:7.2.3          (default, BASE below)
+#   :rolling     ->  opencloudeu/opencloud-rolling:7.4.0  (BASE_ROLLING, CI reads it)
+# Renovate tracks BOTH pins and auto-merges the bumps - see renovate.json.
+#
+# NOTE: the :production line (7.2.x) is OpenCloud's slow, stable train and does
+# NOT yet carry reva#720 (the incremental-fsync fix for large-folder sync aborts,
+# issue #3027). That fix ships from 7.3.0, which OpenCloud publishes only on the
+# ROLLING image. So for the newest OpenCloud - and to avoid the sync-abort bug on
+# slow (array/FUSE) storage - run the :rolling channel.
 #
 # Licensing: this wrapper (Dockerfile + scripts + banner) is MIT; the OpenCloud
 # binary baked into the base image is Apache-2.0. See LICENSE / NOTICE.
@@ -26,8 +32,8 @@
 # Concrete, Renovate-tracked base pins. BASE feeds `FROM ${BASE}`; BASE_ROLLING is
 # a pin marker that CI extracts from this file to build the :rolling channel via
 # `--build-arg BASE=<rolling>`, so both tags stay in one place.
-ARG BASE=opencloudeu/opencloud:7.2.2
-ARG BASE_ROLLING=opencloudeu/opencloud-rolling:7.3.0
+ARG BASE=opencloudeu/opencloud:7.2.3
+ARG BASE_ROLLING=opencloudeu/opencloud-rolling:7.4.0
 
 # Static gosu for the privilege drop, copied from the upstream multi-arch image
 # so we never depend on the base image having apk/apt at build time.

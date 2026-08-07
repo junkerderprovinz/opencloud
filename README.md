@@ -280,6 +280,12 @@ The container starts, heals ownership, then crash-loops and the WebUI never come
 
 Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image — a clean data dir boots normally, S3 included.
 
+### Large-folder sync from the desktop client stalls or aborts
+
+Syncing a large folder (tens of GB) from the desktop client stalls partway and the client connection just drops. The cause is **slow `fsync` on the Data volume**, not the network. The **Data** volume holds the embedded NATS message bus, the file-tree metadata and the transient upload staging, all of them fsync-heavy. On slow storage (the Unraid array, or any `/mnt/user` share through the shfs FUSE union) the fsync storm freezes, postprocessing fails and the server drops the client (upstream issue [#3027](https://github.com/opencloud-eu/opencloud/issues/3027)).
+
+Fix: put the **Data** volume on a **fast SSD/NVMe pool**, not the array. With a decomposeds3/S3 backend only this small metadata volume needs fast storage (the file blobs go to your S3 bucket, so it stays small and grows with file count, not size). The reva incremental-fsync change (reva#720) also helps and ships from OpenCloud 7.3.0, which is on the `:rolling` channel ([§4](#4-production-vs-rolling)).
+
 
 
 <details>

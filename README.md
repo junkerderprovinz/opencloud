@@ -200,6 +200,19 @@ OpenCloud can edit documents in the browser, but it ships no office engine: it s
 
 Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service (`OC_ADD_RUN_SERVICES=collaboration`), sets the `COLLABORATION_*` variables, registers it as the secure-view/edit handler and exposes the secure-view role. Leave **Web office suite** on `off` (the default) if you do not need document editing.
 
+### Full-text search (Apache Tika, optional)
+
+By default search matches **file names**. To also search **inside file contents** (PDFs, Office documents, …), OpenCloud needs an **Apache Tika** container to extract the text. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; you enable it with a container plus three variables instead.)
+
+1. **Run Apache Tika** (its own container): image `apache/tika:latest`, port `9998` (use `apache/tika:latest-full` if you also want OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
+2. **Point OpenCloud at it:** add three container variables (edit the OpenCloud container → *Add another Path, Port, Variable…* → *Variable*):
+   - `SEARCH_EXTRACTOR_TYPE` = `tika`
+   - `SEARCH_EXTRACTOR_TIKA_TIKA_URL` = `http://<TIKA_IP>:9998`
+   - `FRONTEND_FULL_TEXT_SEARCH_ENABLED` = `true`
+3. **Apply** — OpenCloud restarts with content search enabled.
+
+Only files uploaded or changed **after** this are content-indexed; existing files are **not** re-indexed automatically, so re-upload or edit a file to test. See the [OpenCloud search docs](https://docs.opencloud.eu/docs/dev/server/Services/search/Search-info/).
+
 <br>
 
 ## 4. Production vs Rolling

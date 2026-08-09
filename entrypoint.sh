@@ -124,6 +124,27 @@ elif [ -n "${_oc_app_name}" ]; then
     echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office NOT enabled"
 fi
 
+# --- optional full-text search (Apache Tika) --------------------------------
+# FULLTEXT_SEARCH=true turns on content search (searching INSIDE files, not just
+# names). Apache Tika ALWAYS runs as a SEPARATE container (apache/tika, port
+# 9998); this only points OpenCloud's search extractor at it and tells the web
+# UI that full-text search is available. TIKA_URL = that container's
+# network-reachable URL. Default off, so a normal install is unaffected. Values
+# verified against the OpenCloud search docs. Note: only files uploaded or
+# changed AFTER this get their contents indexed; existing files are not.
+_fts="$(printf '%s' "${FULLTEXT_SEARCH:-false}" | tr '[:upper:]' '[:lower:]')"
+if [ "${_fts}" = "true" ] && [ -n "${TIKA_URL:-}" ]; then
+    export SEARCH_EXTRACTOR_TYPE="tika"
+    export SEARCH_EXTRACTOR_TIKA_TIKA_URL="${TIKA_URL}"
+    # the extractor fetches file content from the internal CS3 gateway; tolerate
+    # its self-signed cert (LAN default, mirrors the web-office data-gateway flag)
+    export SEARCH_EXTRACTOR_CS3SOURCE_INSECURE="${SEARCH_EXTRACTOR_CS3SOURCE_INSECURE:-true}"
+    export FRONTEND_FULL_TEXT_SEARCH_ENABLED="true"
+    echo "[entrypoint] full-text search enabled: Apache Tika at ${TIKA_URL} (content indexing on for new/changed files)"
+elif [ "${_fts}" = "true" ]; then
+    echo "[entrypoint] FULLTEXT_SEARCH=true but TIKA_URL is empty -> full-text search NOT enabled"
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. Idempotent: on later boots the file exists and init exits
 # non-zero, which we deliberately ignore (|| true).

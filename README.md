@@ -202,16 +202,12 @@ Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service
 
 ### Full-text search (Apache Tika, optional)
 
-OpenCloud already has a built-in search: out of the box it matches **file and folder names** and metadata (tags, media type, …). It does not look **inside file contents** on its own. **Apache Tika** is not a second search engine, it is a text-extractor that OpenCloud's search service uses to read the text out of documents (PDF, Word, Excel, PowerPoint, ODF, …) so a search word inside a file is found too. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; you enable it with a container plus three variables instead.)
+OpenCloud already has a built-in search: out of the box it matches **file and folder names** and metadata (tags, media type, …). It does not look **inside file contents** on its own. **Apache Tika** is not a second search engine, it is a text-extractor that OpenCloud's search service uses to read the text out of documents (PDF, Word, Excel, PowerPoint, ODF, …) so a search word inside a file is found too. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; the two template fields below do the wiring instead.)
 
 1. **Run Apache Tika** (its own container). Ready-made **Tika templates exist in Community Applications** (search *Tika*) — install one (image `apache/tika`, port `9998`; a `-full` tag additionally does OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
-2. **Point OpenCloud at it:** add three container variables (edit the OpenCloud container → *Add another Path, Port, Variable…* → *Variable*):
-   - `SEARCH_EXTRACTOR_TYPE` = `tika`
-   - `SEARCH_EXTRACTOR_TIKA_TIKA_URL` = `http://<TIKA_IP>:9998`
-   - `FRONTEND_FULL_TEXT_SEARCH_ENABLED` = `true`
-3. **Apply** — OpenCloud restarts with content search enabled.
+2. **Turn it on:** set **Full-text search (Tika)** to `true` and **Tika server URL** to that address, then **Apply**. The wrapper points OpenCloud's search extractor at Tika and switches full-text search on for you.
 
-Only files uploaded or changed **after** this are content-indexed; existing files are **not** re-indexed automatically, so re-upload or edit a file to test. See the [OpenCloud search docs](https://docs.opencloud.eu/docs/dev/server/Services/search/Search-info/).
+Under the hood the wrapper sets `SEARCH_EXTRACTOR_TYPE=tika`, `SEARCH_EXTRACTOR_TIKA_TIKA_URL` and `FRONTEND_FULL_TEXT_SEARCH_ENABLED=true` (plus `SEARCH_EXTRACTOR_CS3SOURCE_INSECURE=true` for the internal LAN cert). Only files uploaded or changed **after** this are content-indexed; existing files are **not** re-indexed automatically, so re-upload or edit a file to test. See the [OpenCloud search docs](https://docs.opencloud.eu/docs/dev/server/Services/search/Search-info/).
 
 <br>
 

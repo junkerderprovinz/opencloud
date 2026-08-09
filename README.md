@@ -202,9 +202,9 @@ Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service
 
 ### Full-text search (Apache Tika, optional)
 
-By default search matches **file names**. To also search **inside file contents** (PDFs, Office documents, …), OpenCloud needs an **Apache Tika** container to extract the text. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; you enable it with a container plus three variables instead.)
+OpenCloud already has a built-in search: out of the box it matches **file and folder names** and metadata (tags, media type, …). It does not look **inside file contents** on its own. **Apache Tika** is not a second search engine, it is a text-extractor that OpenCloud's search service uses to read the text out of documents (PDF, Word, Excel, PowerPoint, ODF, …) so a search word inside a file is found too. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; you enable it with a container plus three variables instead.)
 
-1. **Run Apache Tika** (its own container): image `apache/tika:latest`, port `9998` (use `apache/tika:latest-full` if you also want OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
+1. **Run Apache Tika** (its own container). Ready-made **Tika templates exist in Community Applications** (search *Tika*) — install one (image `apache/tika`, port `9998`; a `-full` tag additionally does OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
 2. **Point OpenCloud at it:** add three container variables (edit the OpenCloud container → *Add another Path, Port, Variable…* → *Variable*):
    - `SEARCH_EXTRACTOR_TYPE` = `tika`
    - `SEARCH_EXTRACTOR_TIKA_TIKA_URL` = `http://<TIKA_IP>:9998`

@@ -224,7 +224,7 @@ jobs:
 
     steps:
       - name: Download digests for ${{ matrix.channel }}
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           path: /tmp/digests
           pattern: digests-${{ matrix.channel }}-*

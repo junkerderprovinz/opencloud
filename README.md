@@ -25,6 +25,10 @@ appdata permissions and honours Unraid's <code>PUID</code>/<code>PGID</code> —
 no <code>chown</code>, no config-file editing required.
 </p>
 
+<p align="center">
+A solo, free-time project. Bugs and ideas via <a href="https://github.com/junkerderprovinz/opencloud/issues">GitHub issues</a>; if it's useful to you, a coffee is always welcome.
+</p>
+
 <br>
 
 <p align="center">
@@ -379,7 +383,9 @@ This repository packages OpenCloud as a container for Unraid. The packaging in t
 
 ## 13. Support this project
 
-If this template saves you a setup hassle or a debug night, consider buying me a coffee:
+OpenCloud is a one-person project. I write, test, and support it myself, in whatever free time is left after work. Found a bug or have an idea? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues) so it doesn't get lost.
+
+If you'd like to support the time that goes into it, you're welcome to buy me a coffee. Genuinely appreciated either way.
 
 <p align="center">
   <a href="https://buymeacoffee.com/junkerderprovinz">

@@ -165,29 +165,27 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 
 ### S3 object storage (optional)
 
-OpenCloud can keep file **blobs** in any S3-compatible bucket (MinIO, AWS S3, Backblaze B2, Wasabi) while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage — do **not** leave it blank.
+OpenCloud can keep file **blobs** in any S3-compatible bucket while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage — do **not** leave it blank.
+
+For self-hosted, **[SeaweedFS](https://github.com/junkerderprovinz/unraid-apps/tree/main/seaweedfs)** is the recommended option: a genuine, actively-maintained S3-compatible store. AWS S3, Backblaze B2 and Wasabi work the same way against their own endpoints.
 
 | Variable | Example | Description |
 |---|---|---|
 | `STORAGE_USERS_DRIVER` | `decomposeds3` | Set to `decomposeds3` for S3 blob storage. Default is `posix` (local) — never leave it blank or use `local`, both grey out files. |
-| `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:9000` | S3 endpoint. Internal `http://` URL for self-hosted MinIO; the provider's `https://` endpoint for AWS/B2/Wasabi. |
-| `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` for most MinIO installs; the provider region (`us-east-1`, …) otherwise. |
+| `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:8333` | S3 endpoint. Internal `http://` URL for self-hosted SeaweedFS; the provider's `https://` endpoint for AWS/B2/Wasabi. |
+| `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` works for self-hosted SeaweedFS; the provider region (`us-east-1`, …) otherwise. |
 | `STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY` | `…` | Access key ID. |
 | `STORAGE_USERS_DECOMPOSEDS3_SECRET_KEY` | `…` | Secret access key. |
 | `STORAGE_USERS_DECOMPOSEDS3_BUCKET` | `opencloud` | Bucket name — **create it first**, the container does not. |
 
 **Where those values come from:**
 
-- **MinIO (self-hosted).** In the MinIO console click **Create Bucket** (top left) and name it (e.g. `opencloud`) — that is your bucket name. The current MinIO **Community Edition** console has **no Access Keys page** (only the object browser), so for the keys either:
-  - **Easiest:** use your MinIO **root** credentials directly — access key = `MINIO_ROOT_USER`, secret key = `MINIO_ROOT_PASSWORD` (the values you set on your MinIO container; check its Docker template).
-  - **Cleaner (dedicated, revocable key):** create a service account with the `mc` CLI — `mc alias set my http://<minio-ip>:9000 <root-user> <root-pass>` then `mc admin user svcacct add my <root-user>`, which prints a fresh **Access Key** + **Secret Key**.
-  
-  Point the endpoint at the **API** port `http://<minio-ip>:9000` (not the `9001` console) with region `default`.
+- **SeaweedFS (self-hosted, recommended).** In that template, set an **Access Key** and **Secret Key** (see its README's Security note) and optionally a **Pre-create Bucket** name — those become your access key, secret key and bucket directly, no separate service-account step. Point the endpoint at its S3 port, `http://<seaweedfs-ip>:8333`, with region `default`.
 - **AWS S3 / Backblaze B2 / Wasabi.** Create a bucket in the provider console, then create an access key (AWS: an IAM access key; B2/Wasabi: an application/API key). Use the provider's `https://` endpoint and the bucket's region.
 
 > **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
 
-MinIO note: if uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. This wrapper's S3 path is verified end-to-end against MinIO (blob lands in the bucket, metadata on the local volume).
+If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. The SeaweedFS path uses the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against, but hasn't been separately re-verified end-to-end since the switch away from MinIO.
 
 <br>
 

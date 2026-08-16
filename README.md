@@ -26,7 +26,7 @@ no <code>chown</code>, no config-file editing required.
 </p>
 
 <p align="center">
-Maintained solo, in whatever spare time there is. Bugs, ideas and feature requests via <a href="https://github.com/junkerderprovinz/opencloud/issues">GitHub issues</a>. If it's useful to you, a coffee is always welcome.
+Maintained solo, in whatever spare time there is. Questions via the <a href="https://forums.unraid.net/topic/200022-support-junkerderprovinz-opencloud/">support thread</a>, bugs, ideas and feature requests via <a href="https://github.com/junkerderprovinz/opencloud/issues">GitHub issues</a>. If it's useful to you, a coffee is always welcome.
 </p>
 
 <br>
@@ -382,7 +382,7 @@ This repository packages OpenCloud as a container for Unraid. The packaging in t
 
 ## 13. Support this project
 
-Questions, bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
+Questions? Check the [support thread](https://forums.unraid.net/topic/200022-support-junkerderprovinz-opencloud/). Bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
 
 This is a one-person project. I put a lot of time and effort into building and maintaining it, in whatever free time I have. If it's helped you, I'd genuinely appreciate the support: you're welcome to buy me a coffee.
 

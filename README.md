@@ -167,25 +167,26 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 
 OpenCloud can keep file **blobs** in any S3-compatible bucket while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage — do **not** leave it blank.
 
-For self-hosted, **[SeaweedFS](https://github.com/junkerderprovinz/unraid-apps/tree/main/seaweedfs)** is the recommended option: a genuine, actively-maintained S3-compatible store. AWS S3, Backblaze B2 and Wasabi work the same way against their own endpoints.
+For self-hosted, two genuine, actively-maintained S3-compatible stores work well here: **[SeaweedFS](https://github.com/junkerderprovinz/unraid-apps/tree/main/seaweedfs)** (recommended for a single node) and **[Garage](https://github.com/junkerderprovinz/garage)** (built for geo-distributed multi-node clusters, but runs single-node here too). AWS S3, Backblaze B2 and Wasabi work the same way against their own endpoints.
 
 | Variable | Example | Description |
 |---|---|---|
 | `STORAGE_USERS_DRIVER` | `decomposeds3` | Set to `decomposeds3` for S3 blob storage. Default is `posix` (local) — never leave it blank or use `local`, both grey out files. |
-| `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:8333` | S3 endpoint. Internal `http://` URL for self-hosted SeaweedFS; the provider's `https://` endpoint for AWS/B2/Wasabi. |
-| `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` works for self-hosted SeaweedFS; the provider region (`us-east-1`, …) otherwise. |
+| `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:8333` | S3 endpoint. Internal `http://` URL for self-hosted SeaweedFS/Garage; the provider's `https://` endpoint for AWS/B2/Wasabi. |
+| `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` for SeaweedFS, `garage` for Garage (its default region), or the provider region (`us-east-1`, …) otherwise. |
 | `STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY` | `…` | Access key ID. |
 | `STORAGE_USERS_DECOMPOSEDS3_SECRET_KEY` | `…` | Secret access key. |
 | `STORAGE_USERS_DECOMPOSEDS3_BUCKET` | `opencloud` | Bucket name — **create it first**, the container does not. |
 
 **Where those values come from:**
 
-- **SeaweedFS (self-hosted, recommended).** In that template, set an **Access Key** and **Secret Key** (see its README's Security note) and optionally a **Pre-create Bucket** name — those become your access key, secret key and bucket directly, no separate service-account step. Point the endpoint at its S3 port, `http://<seaweedfs-ip>:8333`, with region `default`.
+- **SeaweedFS (self-hosted).** In that template, set an **Access Key** and **Secret Key** (see its README's Security note) and optionally a **Pre-create Bucket** name — those become your access key, secret key and bucket directly, no separate service-account step. Point the endpoint at its S3 port, `http://<seaweedfs-ip>:8333`, with region `default`.
+- **Garage (self-hosted).** In that template, set an **Access Key** and **Secret Key** (and optionally a **Bucket**) — they are pre-seeded on first boot, no separate CLI step. Point the endpoint at its S3 API port, `http://<garage-ip>:3900`, with region `garage`.
 - **AWS S3 / Backblaze B2 / Wasabi.** Create a bucket in the provider console, then create an access key (AWS: an IAM access key; B2/Wasabi: an application/API key). Use the provider's `https://` endpoint and the bucket's region.
 
 > **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
 
-If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. The SeaweedFS path uses the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against, but hasn't been separately re-verified end-to-end since the switch away from MinIO.
+If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. Both the SeaweedFS and Garage paths use the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against, but neither has been separately re-verified end-to-end against a live OpenCloud instance since the switch away from MinIO.
 
 <br>
 

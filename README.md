@@ -220,12 +220,12 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud` (pinned stable) | **Default.** The stable OpenCloud release line (currently the 7.2.x train). |
-| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling` (pinned) | Newest OpenCloud releases (currently 7.4.x). Recommended for large-folder sync. |
+| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud:latest` | **Default.** OpenCloud's stable release line (currently the 7.2.x train). |
+| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | Newest OpenCloud releases (currently 7.4.x). Recommended for large-folder sync. |
 
 **Which channel?** The stable `:production` train moves slowly and, as of 7.2.x, does not yet carry the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027). That fix ships from 7.3.0, which OpenCloud publishes only on the rolling image. So on array/FUSE-backed appdata, or if you push large folders (tens of GB) from a desktop client, run `:rolling`. Placing the data volume on a fast SSD/NVMe pool also avoids the stall.
 
-Switch by changing the **Repository** tag in the Unraid template (`:production` -> `:rolling`). Back up your appdata before switching channels. Renovate opens a PR for each new upstream release (you merge it after a look at the release notes), and the weekly rebuild picks up upstream and Alpine security patches.
+Switch by changing the **Repository** tag in the Unraid template (`:production` -> `:rolling`). Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
 
 <br>
 

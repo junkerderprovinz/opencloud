@@ -13,20 +13,9 @@
   "prConcurrentLimit": 6,
   "packageRules": [
     {
-      "description": "OpenCloud production base image (:production channel) - group + label; PR only, manual review (consistent with the other repos). OpenCloud is stateful and versions can migrate data, so a human merges each bump after a glance at the release notes.",
-      "matchPackageNames": ["opencloudeu/opencloud"],
-      "groupName": "OpenCloud production base",
-      "commitMessageTopic": "OpenCloud production base",
-      "commitMessagePrefix": "feat:",
-      "labels": ["base-image"]
-    },
-    {
-      "description": "OpenCloud rolling base image (:rolling channel, carries reva#720 / the large-folder-sync fix) - group + label; PR only, manual review (consistent with the other repos). OpenCloud is stateful and versions can migrate data, so a human merges each bump after a glance at the release notes.",
-      "matchPackageNames": ["opencloudeu/opencloud-rolling"],
-      "groupName": "OpenCloud rolling base",
-      "commitMessageTopic": "OpenCloud rolling base",
-      "commitMessagePrefix": "feat:",
-      "labels": ["base-image"]
+      "description": "OpenCloud production + rolling base images track upstream's own floating :latest tag directly (see Dockerfile) -- no version to pin, no PR to merge. The weekly cron rebuild in build.yml keeps them current instead. Disabled here so Renovate does not propose pinning either to a digest, which would reintroduce the same PR-per-update friction one level down.",
+      "matchPackageNames": ["opencloudeu/opencloud", "opencloudeu/opencloud-rolling"],
+      "enabled": false
     },
     {
       "description": "Static gosu privilege-drop helper image (multi-stage COPY --from)",
@@ -44,18 +33,6 @@
       "platformAutomerge": true,
       "commitMessagePrefix": "ci:",
       "labels": ["github-actions"]
-    }
-  ],
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "Track BOTH OpenCloud base pins (production + rolling) from the Dockerfile ARGs",
-      "managerFilePatterns": ["/(^|/)Dockerfile$/"],
-      "matchStrings": [
-        "ARG BASE=(?<depName>\\S+):(?<currentValue>\\S+)",
-        "ARG BASE_ROLLING=(?<depName>\\S+):(?<currentValue>\\S+)"
-      ],
-      "datasourceTemplate": "docker"
     }
   ]
 }

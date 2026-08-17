@@ -186,7 +186,7 @@ For self-hosted, two genuine, actively-maintained S3-compatible stores work well
 
 > **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
 
-If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. Both the SeaweedFS and Garage paths use the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against, but neither has been separately re-verified end-to-end against a live OpenCloud instance since the switch away from MinIO.
+If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. Both the SeaweedFS and Garage paths use the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against. SeaweedFS has since been re-verified live against a real OpenCloud instance after the switch away from MinIO (connectivity, boot health and unauthenticated bucket reachability all confirmed; a fully authenticated file-read round-trip is the one check still outstanding). Garage has not yet been separately re-verified end-to-end.
 
 <br>
 

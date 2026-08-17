@@ -9,7 +9,7 @@
   <a href="https://github.com/junkerderprovinz/opencloud/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/junkerderprovinz/opencloud/build.yml?branch=main&label=Build&style=for-the-badge&logo=githubactions&logoColor=white" alt="Build" height="36"></a>&nbsp;
   <a href="https://github.com/junkerderprovinz/opencloud/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/junkerderprovinz/opencloud/lint.yml?branch=main&label=Lint&style=for-the-badge&logo=githubactions&logoColor=white" alt="Lint" height="36"></a>&nbsp;
   <a href="https://hub.docker.com/r/junkerderprovinz/opencloud"><img src="https://img.shields.io/docker/pulls/junkerderprovinz/opencloud?style=for-the-badge&logo=docker&logoColor=white&label=Pulls&color=20434f" alt="Docker Pulls" height="36"></a>&nbsp;
-  <a href="https://hub.docker.com/r/junkerderprovinz/opencloud"><img src="https://img.shields.io/docker/image-size/junkerderprovinz/opencloud/production?style=for-the-badge&logo=docker&logoColor=white&label=Size&color=20434f" alt="Image Size" height="36"></a>&nbsp;
+  <a href="https://hub.docker.com/r/junkerderprovinz/opencloud"><img src="https://img.shields.io/docker/image-size/junkerderprovinz/opencloud/latest?style=for-the-badge&logo=docker&logoColor=white&label=Size&color=20434f" alt="Image Size" height="36"></a>&nbsp;
   <a href="https://github.com/junkerderprovinz/opencloud/pkgs/container/opencloud"><img src="https://img.shields.io/badge/Arch-amd64%20%7C%20arm64-success?style=for-the-badge&logo=linux&logoColor=white" alt="Arch" height="36"></a>&nbsp;
   <a href="https://opencloud.eu"><img src="https://img.shields.io/badge/Upstream-OpenCloud-20434f?style=for-the-badge&logo=owncloud&logoColor=white" alt="OpenCloud" height="36"></a>&nbsp;
   <a href="https://unraid.net"><img src="https://img.shields.io/badge/Unraid-Template-f15a2c?style=for-the-badge&logo=unraid&logoColor=white" alt="Unraid" height="36"></a>&nbsp;
@@ -68,7 +68,7 @@ This image is a **thin wrapper** around the official one that fixes exactly thos
 - **Auto-init** — runs `opencloud init` once on first boot (idempotent on later boots).
 - **Permission heal** — creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
 - **PUID / PGID** — drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
-- **Two channels** — `:production` (stable, default) and `:rolling` (newest builds), from the same wrapper.
+- **Two channels** — `:latest` (stable, default) and `:rolling` (newest builds), from the same wrapper.
 - **Multi-arch** — amd64 and arm64.
 
 The wrapper does **not** fork, patch or repackage OpenCloud itself — it layers a tiny entrypoint on top of the unmodified upstream image, so you always run real, current OpenCloud.
@@ -130,7 +130,7 @@ docker run -d \
   -e OC_INSECURE=true \
   -v /mnt/user/appdata/opencloud/config:/etc/opencloud \
   -v /mnt/user/appdata/opencloud/data:/var/lib/opencloud \
-  junkerderprovinz/opencloud:production
+  junkerderprovinz/opencloud:latest
 ```
 
 Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostname).
@@ -220,12 +220,12 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud:latest` | **Default.** OpenCloud's stable release line (currently the 7.2.x train). |
+| `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | **Default.** OpenCloud's stable release line (currently the 7.2.x train). `:production` is kept as an alias, same image. |
 | `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | Newest OpenCloud releases (currently 7.4.x). Recommended for large-folder sync. |
 
-**Which channel?** The stable `:production` train moves slowly and, as of 7.2.x, does not yet carry the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027). That fix ships from 7.3.0, which OpenCloud publishes only on the rolling image. So on array/FUSE-backed appdata, or if you push large folders (tens of GB) from a desktop client, run `:rolling`. Placing the data volume on a fast SSD/NVMe pool also avoids the stall.
+**Which channel?** The stable/default train moves slowly and, as of 7.2.x, does not yet carry the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027). That fix ships from 7.3.0, which OpenCloud publishes only on the rolling image. So on array/FUSE-backed appdata, or if you push large folders (tens of GB) from a desktop client, run `:rolling`. Placing the data volume on a fast SSD/NVMe pool also avoids the stall.
 
-Switch by changing the **Repository** tag in the Unraid template (`:production` -> `:rolling`). Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
+Switch by changing the **Repository** tag in the Unraid template (`:latest` -> `:rolling`). Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
 
 <br>
 
@@ -258,7 +258,7 @@ By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificat
 git clone https://github.com/junkerderprovinz/opencloud.git
 cd opencloud
 
-# production channel (default base pin)
+# production/latest channel (default base)
 docker build -t opencloud:dev .
 
 # rolling channel (reads the BASE_ROLLING pin from the Dockerfile)
@@ -275,7 +275,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t opencloud:dev --load .
 ## 8. Updating
 
 ```bash
-docker pull junkerderprovinz/opencloud:production
+docker pull junkerderprovinz/opencloud:latest
 docker stop opencloud && docker rm opencloud
 # re-create with the same template / docker run args
 ```
@@ -336,7 +336,7 @@ The wrapper heals ownership on start, but a data set created earlier as a differ
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  opencloudeu/opencloud[:production] | opencloud-rolling        │
+│  opencloudeu/opencloud[:latest] | opencloud-rolling           │
 │  (Alpine base + the OpenCloud binary, unmodified)             │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  entrypoint.sh  (runs as root)                          │  │

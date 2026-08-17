@@ -160,8 +160,13 @@ echo "[entrypoint] running 'opencloud init' (harmless error if already initialis
 ${DROP} opencloud init --insecure "${OC_INSECURE}" </dev/null || true
 
 # House ready banner - the LAST block this wrapper prints before handing off to
-# the OpenCloud server (which then streams its own logs).
-/usr/local/bin/print-banner.sh "OpenCloud" "OPENCLOUD IS READY"
+# the OpenCloud server (which then streams its own logs). There is no health
+# check here (nothing can run after the exec below replaces this process), so
+# the status line marks the handoff itself rather than a verified ready-check,
+# same as it always has -- just on the shared one-line status format now.
+/usr/local/bin/print-banner.sh "OpenCloud" "Cloud storage & collaboration platform, plug-and-play for Unraid"
+printf '  \033[0;32m✓ OPENCLOUD IS READY\033[0m - Handing off to the OpenCloud server now\n'
+echo ""
 
 # Hand off: replace the shell with the server, dropped to the target user.
 # shellcheck disable=SC2086

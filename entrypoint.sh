@@ -110,6 +110,12 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     export COLLABORATION_APP_ADDR="${OFFICE_SERVER_URL}"
     export COLLABORATION_WOPI_SRC="${OC_URL}"
     [ -n "${OFFICE_WOPI_SECRET:-}" ] && export COLLABORATION_WOPI_SECRET="${OFFICE_WOPI_SECRET}"
+    # OnlyOffice/Euro Office reject every document with "document security token is
+    # not correctly formed" unless the WOPI secret here matches the doc server's own
+    # JWT secret exactly - warn loudly rather than fail silently when it's unset.
+    if [ "${_oc_app_product}" = "OnlyOffice" ] && [ -z "${OFFICE_WOPI_SECRET:-}" ]; then
+        echo "[entrypoint] WARNING: OFFICE=${OFFICE} but OFFICE_WOPI_SECRET is empty - documents will fail with 'document security token is not correctly formed' unless it exactly matches the document server's JWT secret"
+    fi
     # tolerate self-signed certs on the doc server + internal data gateway (LAN default)
     export COLLABORATION_APP_INSECURE="${COLLABORATION_APP_INSECURE:-true}"
     export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"

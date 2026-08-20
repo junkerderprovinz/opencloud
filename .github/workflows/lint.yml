@@ -11,6 +11,7 @@ jobs:
   hadolint:
     name: Hadolint (Dockerfile)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: hadolint/hadolint-action@v3.4.0
@@ -24,11 +25,12 @@ jobs:
   shellcheck:
     name: ShellCheck (wrapper scripts)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Run shellcheck
         run: |
-          sudo apt-get update
+          sudo apt-get update -o Acquire::Retries=3
           sudo apt-get install -y shellcheck
           SCRIPTS="entrypoint.sh print-banner.sh"
           echo "Checking: ${SCRIPTS}"
@@ -39,11 +41,12 @@ jobs:
   xml-validate:
     name: XML Validation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - name: Validate XML files
         run: |
-          sudo apt-get update
+          sudo apt-get update -o Acquire::Retries=3
           sudo apt-get install -y libxml2-utils
           # No XML ships in this repo today (the CA template lives in unraid-apps),
           # but keep the guard so any future XML is validated automatically.

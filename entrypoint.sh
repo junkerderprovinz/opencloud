@@ -125,7 +125,41 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     # secure-view role (exact default role set incl. secure-view, from opencloud-compose)
     export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
     export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
-    echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on)"
+    # Registering a WOPI app above does NOT add its origin to OpenCloud's own
+    # Content-Security-Policy: COLLABORATION_APP_ADDR and the proxy's frame-src
+    # allowlist are two unrelated settings that happen to need the same value.
+    # Without this, the browser blocks the editor iframe with a CSP frame-src
+    # violation even though the WOPI wiring above is entirely correct - hit for
+    # real with Euro Office (see junkerderprovinz/unraid-apps#7). Verified
+    # against opencloud-compose's weboffice/*.yml + config/opencloud/csp.yaml,
+    # which wire the exact same origin into both places by hand; this generates
+    # that second half automatically instead of requiring a manual csp.yaml.
+    # PROXY_CSP_CONFIG_FILE_LOCATION entries are merged into OpenCloud's built-in
+    # CSP (additive, not a replacement), so this file only needs the addition.
+    if [ -z "${PROXY_CSP_CONFIG_FILE_LOCATION:-}" ]; then
+        # Portable origin extraction (POSIX parameter expansion, no sed dialect
+        # to worry about): split off the scheme, take everything up to the next
+        # '/' as host[:port], drop any path/query OFFICE_SERVER_URL might carry.
+        _oc_office_rest="${OFFICE_SERVER_URL#*://}"
+        _oc_office_hostport="${_oc_office_rest%%/*}"
+        _oc_office_origin="${OFFICE_SERVER_URL%%://*}://${_oc_office_hostport}/"
+        cat > "${CONFIG_DIR}/csp.yaml" <<EOF
+directives:
+  frame-src:
+    - '${_oc_office_origin}'
+  img-src:
+    - '${_oc_office_origin}'
+EOF
+        chown "${PUID}:${PGID}" "${CONFIG_DIR}/csp.yaml" 2>/dev/null || true
+        export PROXY_CSP_CONFIG_FILE_LOCATION="${CONFIG_DIR}/csp.yaml"
+        echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on, CSP frame-src updated)"
+    else
+        # The user already points OpenCloud at their own CSP file - do not
+        # overwrite it, but they need to add ${OFFICE_SERVER_URL} to its
+        # frame-src/img-src themselves or the editor iframe will be blocked.
+        echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on)"
+        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set, add ${OFFICE_SERVER_URL} to its frame-src/img-src yourself or the editor iframe will be CSP-blocked"
+    fi
 elif [ -n "${_oc_app_name}" ]; then
     echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office NOT enabled"
 fi

@@ -68,7 +68,7 @@ This image is a **thin wrapper** around the official one that fixes exactly thos
 - **Auto-init** — runs `opencloud init` once on first boot (idempotent on later boots).
 - **Permission heal** — creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
 - **PUID / PGID** — drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
-- **Two channels** — `:latest` (stable, default) and `:rolling` (newest builds), from the same wrapper.
+- **Two channels** — `:rolling` (newest builds, the template default) and `:latest` (OpenCloud's fully QA'd production line), from the same wrapper.
 - **Multi-arch** — amd64 and arm64.
 
 The wrapper does **not** fork, patch or repackage OpenCloud itself — it layers a tiny entrypoint on top of the unmodified upstream image, so you always run real, current OpenCloud.
@@ -130,7 +130,7 @@ docker run -d \
   -e OC_INSECURE=true \
   -v /mnt/user/appdata/opencloud/config:/etc/opencloud \
   -v /mnt/user/appdata/opencloud/data:/var/lib/opencloud \
-  junkerderprovinz/opencloud:latest
+  junkerderprovinz/opencloud:rolling
 ```
 
 Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostname).
@@ -220,12 +220,12 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | **Default.** OpenCloud's stable release line (currently the 7.2.x train). `:production` is kept as an alias, same image. |
-| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | Newest OpenCloud releases (currently 7.4.x). Recommended for large-folder sync. |
+| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 7.5.x), published about every three weeks. |
+| `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:production` is kept as an alias, same image. |
 
-**Which channel?** The stable/default train moves slowly and, as of 7.2.x, does not yet carry the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027). That fix ships from 7.3.0, which OpenCloud publishes only on the rolling image. So on array/FUSE-backed appdata, or if you push large folders (tens of GB) from a desktop client, run `:rolling`. Placing the data volume on a fast SSD/NVMe pool also avoids the stall.
+**Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)). Slow storage is precisely what produces those timeouts. Since production is cut roughly twice a year, the stable line will not carry the fix for months.
 
-Switch by changing the **Repository** tag in the Unraid template (`:latest` -> `:rolling`). Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
+Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
 
 <br>
 

@@ -5,3 +5,7 @@
 entrypoint.sh text eol=lf
 print-banner.sh text eol=lf
 .github/assets/banner-raw.txt text eol=lf
+
+# Generated banner and icon assets: the generators write LF, and their blobs still
+# held CRLF, so every run reported them as modified while the bytes were identical.
+.github/assets/*.svg text eol=lf

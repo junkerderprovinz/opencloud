@@ -323,16 +323,16 @@ jobs:
       - name: Docker Hub description sync ready?
         id: dhdesc
         env:
-          PW: ${{ secrets.DOCKERHUB_PASSWORD }}
+          PW: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -n "$PW" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "DOCKERHUB_PASSWORD not set - skipping Docker Hub description sync"; echo "go=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$PW" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "DOCKERHUB_TOKEN not set - skipping Docker Hub description sync"; echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Sync README to Docker Hub
         if: ${{ steps.dhdesc.outputs.go == 'true' }}
         uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
           short-description: "One-click OpenCloud for Unraid - auto-init, permission heal, PUID/PGID (production + rolling channels)."
           enable-url-completion: true

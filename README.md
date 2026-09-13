@@ -155,6 +155,7 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `OC_LOG_LEVEL` | `info` | Log verbosity — `info`, `warn`, `error`, `debug`. |
 | `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
 | `PROXY_TLS` | `true` | OpenCloud terminates TLS itself on 9200. Set `false` behind a TLS-terminating proxy (see [§6](#6-reverse-proxy)). |
+| `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§9](#9-troubleshooting). |
 | `PUID` | `99` | User ID OpenCloud runs as — Unraid's *nobody*. |
 | `PGID` | `100` | Group ID — Unraid's *users*. |
 
@@ -297,6 +298,16 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 The container starts, heals ownership, then crash-loops and the WebUI never comes up. This means the **Data** volume is pointing at a **non-fresh** OpenCloud/oCIS data directory — an old install, or a data set created with a different storage backend (local vs S3). The layouts are not interchangeable and there is **no in-place migration between backends**, so the `search` service can't open its index and takes the whole server down.
 
 Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image — a clean data dir boots normally, S3 included.
+
+### A WebDAV client gets `401 Unauthorized` with an app token that is definitely correct
+
+rclone, a phone sync app or any other WebDAV client is refused with `401 Unauthorized`, while the same account signs in through the browser without trouble. The token is not the problem: **`PROXY_ENABLE_APP_AUTH` is `false` by default**, and with it off the proxy refuses the request before the token is read at all.
+
+Two details give it away, and both are visible in the container log. The `401` comes back in well under a millisecond, far too fast for anything to have been checked, and no line from `auth-app` or `auth-basic` appears anywhere near it: the services are running, they are simply never asked.
+
+Fix: set `PROXY_ENABLE_APP_AUTH=true` and restart the container. Then create the token under **Account → App tokens** in the web interface, and give the client the account's **user name** with that token as the password. The token is a handful of words separated by spaces, so paste it whole rather than retyping it.
+
+This does **not** open WebDAV to account passwords. That is the separate `PROXY_ENABLE_BASIC_AUTH`, which stays off, and an app token can be revoked on its own without touching the password.
 
 ### Large-folder sync from the desktop client stalls or aborts
 

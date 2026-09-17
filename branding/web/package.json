@@ -1,0 +1,27 @@
+{
+  "name": "branding",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Branding admin app for the OpenCloud Unraid wrapper",
+  "license": "AGPL-3.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check:types": "vue-tsc --noEmit",
+    "test:unit": "vitest"
+  },
+  "devDependencies": {
+    "@opencloud-eu/extension-sdk": "7.4.0",
+    "@opencloud-eu/tsconfig": "^7.0.0",
+    "@opencloud-eu/web-client": "^7.0.0",
+    "@opencloud-eu/web-pkg": "^7.0.0",
+    "happy-dom": "^20.0.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.1",
+    "vue": "^3.4.21",
+    "vue-tsc": "^3.2.6",
+    "vue3-gettext": "4.0.1"
+  },
+  "packageManager": "pnpm@11.24.0"
+}

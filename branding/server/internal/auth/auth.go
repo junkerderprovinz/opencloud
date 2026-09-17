@@ -39,7 +39,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 	var me struct {
 		ID string `json:"id"`
 	}
-	if err := c.call(ctx, http.MethodGet, "/graph/v1.0/me", authorization, nil, &me); err != nil {
+	if err := c.call(ctx, http.MethodGet, "/graph/v1.0/me", authorization, nil, http.StatusOK, &me); err != nil {
 		return fmt.Errorf("%w: %v", ErrForbidden, err)
 	}
 	if me.ID == "" {
@@ -52,7 +52,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 	var perms struct {
 		Permissions []string `json:"permissions"`
 	}
-	if err := c.call(ctx, http.MethodPost, "/api/v0/settings/permissions-list", authorization, body, &perms); err != nil {
+	if err := c.call(ctx, http.MethodPost, "/api/v0/settings/permissions-list", authorization, body, http.StatusCreated, &perms); err != nil {
 		return fmt.Errorf("%w: %v", ErrForbidden, err)
 	}
 	for _, p := range perms.Permissions {
@@ -63,7 +63,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 	return ErrForbidden
 }
 
-func (c Checker) call(ctx context.Context, method, path, authorization string, body []byte, out any) error {
+func (c Checker) call(ctx context.Context, method, path, authorization string, body []byte, expectedStatus int, out any) error {
 	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.BaseURL, "/")+path, bytes.NewReader(body))
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func (c Checker) call(ctx context.Context, method, path, authorization string, b
 		return err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != expectedStatus {
 		return fmt.Errorf("%s %s: status %d", method, path, resp.StatusCode)
 	}
 	return json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(out)

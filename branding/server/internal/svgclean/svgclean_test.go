@@ -2,6 +2,7 @@ package svgclean
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -55,7 +56,7 @@ func TestRemovesActiveContent(t *testing.T) {
 }
 
 func TestKeepsRasterDataImageAndLocalRefs(t *testing.T) {
-	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image href="data:image/png;base64,iVBORw0KGgo=" width="1" height="1"/><use xlink:href="#shape"/></svg>`)
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><image href="data:image/png;base64,iVBORw0KGgo=" width="1" height="1"/><path id="shape" d="M0 0h1v1z"/><use xlink:href="#shape"/></svg>`)
 	for _, want := range []string{`href="data:image/png;base64,iVBORw0KGgo="`, `xlink:href="#shape"`} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in %s", want, out)
@@ -85,5 +86,113 @@ func TestRejectsNonSVGRoot(t *testing.T) {
 	}
 	if _, err := Sanitize(strings.NewReader(``)); !errors.Is(err, ErrNotSVG) {
 		t.Fatalf("empty input: want ErrNotSVG, got %v", err)
+	}
+}
+
+func TestBlocksCSSEscapesAndFunctions(t *testing.T) {
+	vectors := []string{
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect fill="u\rl(http://evil.example/p.svg#a)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect stroke="u\rl(http://evil.example/p.svg#a)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect clip-path="u\rl(http://evil.example/p.svg#a)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect mask="u\rl(http://evil.example/p.svg#a)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect mask="u\72 l(http://evil.example/m.svg#a)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect mask="image-set('http://evil.example/m.png' 1x)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg" style="background-image:image-set('http://evil.example/b.png' 1x)"><rect/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect style="mask-image:image-set('http://evil.example/m.png' 1x)"/></svg>`,
+		`<svg xmlns="http://www.w3.org/2000/svg"><rect style="-webkit-mask-image:-webkit-image-set('http://evil.example/m.png' 1x)"/></svg>`,
+	}
+	for _, in := range vectors {
+		out := mustClean(t, in)
+		for _, bad := range []string{"evil.example", "image-set", `\`} {
+			if strings.Contains(out, bad) {
+				t.Errorf("%q survived cleaning %s -> %s", bad, in, out)
+			}
+		}
+	}
+}
+
+func TestKeepsSafeFunctionsAndStyle(t *testing.T) {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><rect fill="rgb(10, 20, 30)" transform="matrix(1 0 0 1 5 5) rotate(45)"/><rect fill="url(#g)" style="fill:#fff;font-family:'Open Sans'"/></svg>`)
+	for _, want := range []string{`fill="rgb(10, 20, 30)"`, `transform="matrix(1 0 0 1 5 5) rotate(45)"`, `fill="url(#g)"`, `style="fill:#fff;font-family:&#39;Open Sans&#39;"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in %s", want, out)
+		}
+	}
+}
+
+func TestNestedUseTargetingAnotherUseIsDropped(t *testing.T) {
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg"><rect id="a0" width="1" height="1"/>`)
+	for i := 1; i <= 22; i++ {
+		fmt.Fprintf(&b, `<g id="a%d"><use href="#a%d"/><use href="#a%d"/></g>`, i, i-1, i-1)
+	}
+	b.WriteString(`</svg>`)
+	out := mustClean(t, b.String())
+	if n := strings.Count(out, "<use"); n > 2 {
+		t.Errorf("want at most 2 kept <use> elements, got %d: %s", n, out)
+	}
+}
+
+func TestUseKeptWhenTargetHasNoUse(t *testing.T) {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><path id="shape" d="M0 0h1v1z"/><use href="#shape"/></svg>`)
+	if !strings.Contains(out, "<use") || !strings.Contains(out, `href="#shape"`) {
+		t.Errorf("use element dropped unexpectedly: %s", out)
+	}
+}
+
+func TestUseDroppedWhenTargetMissing(t *testing.T) {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><use href="#missing"/></svg>`)
+	if strings.Contains(out, "<use") {
+		t.Errorf("use with missing target survived: %s", out)
+	}
+}
+
+func TestUseCapAt256(t *testing.T) {
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg"><path id="shape" d="M0 0h1v1z"/>`)
+	for i := 0; i < 300; i++ {
+		b.WriteString(`<use href="#shape"/>`)
+	}
+	b.WriteString(`</svg>`)
+	out := mustClean(t, b.String())
+	if n := strings.Count(out, "<use"); n != 256 {
+		t.Errorf("want exactly 256 kept <use> elements, got %d", n)
+	}
+}
+
+func TestDedupsAttributes(t *testing.T) {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><rect fill="red" fill="blue"/></svg>`)
+	if n := strings.Count(out, `fill="`); n != 1 {
+		t.Errorf("want fill= exactly once, got %d: %s", n, out)
+	}
+
+	out2 := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:x="http://www.w3.org/1999/xlink"><path id="a" d="M0 0"/><use xlink:href="#a" x:href="#a"/></svg>`)
+	if n := strings.Count(out2, `xlink:href="`); n != 1 {
+		t.Errorf("want xlink:href= exactly once, got %d: %s", n, out2)
+	}
+}
+
+func TestIgnoresContentAfterRoot(t *testing.T) {
+	out, err := Sanitize(strings.NewReader(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg><rect/>`))
+	if err != nil {
+		return // the decoder erroring on trailing content is acceptable too
+	}
+	if n := strings.Count(string(out), "<rect"); n != 1 {
+		t.Errorf("want exactly one <rect kept, got %d: %s", n, out)
+	}
+}
+
+func TestRejectsExcessiveNesting(t *testing.T) {
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg">`)
+	for i := 0; i < 300; i++ {
+		b.WriteString(`<g>`)
+	}
+	for i := 0; i < 300; i++ {
+		b.WriteString(`</g>`)
+	}
+	b.WriteString(`</svg>`)
+	if _, err := Sanitize(strings.NewReader(b.String())); err == nil {
+		t.Fatal("want an error for excessive nesting")
 	}
 }

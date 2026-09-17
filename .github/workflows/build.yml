@@ -24,13 +24,13 @@ name: Build & Push
 #                               rolling:    rolling, sha-<short>-rolling
 #   * Tag v*.*.*             -> production: <version>, <major>.<minor>, <major>
 #                               rolling:    <version>-rolling
-#   * Weekly cron (Sun 04 UTC), which picks up upstream OpenCloud and Alpine
-#     updates
+#   * Push to any other branch -> <branch>, <branch>-rolling (GHCR only, for testing)
+#   * Weekly cron (Sun 04 UTC) - picks up upstream OpenCloud + Alpine updates
 #   * Manual workflow_dispatch
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '**' ]
     tags: [ 'v*.*.*' ]
   schedule:
     - cron: '0 4 * * 0'
@@ -258,17 +258,19 @@ jobs:
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
-            name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ vars.DOCKERHUB_USERNAME != '' }}
+            name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ vars.DOCKERHUB_USERNAME != '' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
           tags: |
-            type=raw,value=production,enable=${{ matrix.channel == 'production' }}
+            type=raw,value=production,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
             type=raw,value=latest,enable=${{ matrix.channel == 'production' && github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}},enable=${{ matrix.channel == 'production' }}
-            type=sha,format=short,enable=${{ matrix.channel == 'production' }}
-            type=raw,value=rolling,enable=${{ matrix.channel == 'rolling' }}
+            type=sha,format=short,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
+            type=raw,value=rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
             type=semver,pattern={{version}},suffix=-rolling,enable=${{ matrix.channel == 'rolling' }}
-            type=sha,format=short,suffix=-rolling,enable=${{ matrix.channel == 'rolling' }}
+            type=sha,format=short,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
+            type=ref,event=branch,enable=${{ matrix.channel == 'production' && github.ref_type == 'branch' && github.ref_name != 'main' }}
+            type=ref,event=branch,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && github.ref_type == 'branch' && github.ref_name != 'main' }}
 
       # Assemble the multi-arch manifest for every tag (both registries) from the
       # per-arch digests pushed to GHCR. imagetools copies platform images across
@@ -304,8 +306,9 @@ jobs:
   # manifests exist. Skipped until DOCKERHUB_TOKEN is set.
   dockerhub-description:
     needs: merge
-    if: ${{ vars.DOCKERHUB_USERNAME != '' && github.event_name != 'pull_request' }}
-    # A cosmetic sync; a refused credential here must not fail the published image.
+    if: ${{ vars.DOCKERHUB_USERNAME != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+    # Cosmetic README->Docker Hub sync; a credential hiccup here (e.g. 401) must
+    # never fail the image build/publish, which is the real deliverable.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 10

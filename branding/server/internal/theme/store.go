@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 	"unicode/utf8"
 
 	"github.com/junkerderprovinz/opencloud/branding/server/internal/imagefmt"
@@ -151,7 +153,10 @@ func (s *Store) commit(st State) error {
 	switch {
 	case err == nil:
 		if err := json.Unmarshal(raw, &overlay); err != nil {
-			return fmt.Errorf("theme: %s: %w", overlayPath, err)
+			invalid := filepath.Join(s.AssetsDir, fmt.Sprintf("theme.json.invalid-%d", time.Now().Unix()))
+			if moveErr := os.Rename(overlayPath, invalid); moveErr == nil {
+				log.Printf("theme: moved invalid overlay to %s", invalid)
+			}
 		}
 	case !errors.Is(err, os.ErrNotExist):
 		return err

@@ -106,3 +106,40 @@ func TestRegenerateWithoutState(t *testing.T) {
 		t.Errorf("overlay = %q, err %v", overlay, err)
 	}
 }
+
+func TestInvalidOverlayIsMovedAside(t *testing.T) {
+	s := newStore(t)
+	if err := os.MkdirAll(s.AssetsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.AssetsDir, "theme.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	st, err := s.SetText("Knight Cloud", "")
+	if err != nil {
+		t.Fatalf("SetText must not fail on invalid overlay: %v", err)
+	}
+	if st.Name != "Knight Cloud" {
+		t.Errorf("state = %+v, want Name=Knight Cloud", st)
+	}
+	overlay, err := os.ReadFile(filepath.Join(s.AssetsDir, "theme.json"))
+	if err != nil {
+		t.Fatalf("new overlay not created: %v", err)
+	}
+	if !strings.Contains(string(overlay), "Knight Cloud") {
+		t.Errorf("overlay does not contain name: %s", overlay)
+	}
+	entries, err := os.ReadDir(s.AssetsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invalidCount := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "theme.json.invalid-") {
+			invalidCount++
+		}
+	}
+	if invalidCount != 1 {
+		t.Errorf("expected exactly 1 theme.json.invalid-* file, found %d", invalidCount)
+	}
+}

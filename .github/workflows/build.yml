@@ -12,12 +12,12 @@ name: Build & Push
 # Both pins live in the Dockerfile (Renovate tracks them); CI reads them from
 # there so there is a single source of truth.
 #
-# Architecture: one native build job per (channel, platform), amd64 on
-# ubuntu-latest and arm64 on ubuntu-24.04-arm (free for public repos). Each job
-# boots its image as a smoke gate (gosu and opencloud present, the entrypoint
-# reaching "OPENCLOUD IS READY" and the server staying up) and pushes by digest;
-# a per-channel merge job then assembles the multi-arch manifest under that
-# channel's tags for both registries.
+# Architecture: one native build job per (channel, platform): amd64 on
+# ubuntu-latest, arm64 on ubuntu-24.04-arm (free for public repos). Each job
+# boots its image as a smoke gate (presence of gosu/opencloud + the entrypoint
+# reaching "OPENCLOUD IS READY" and the server staying up), boots it again with
+# the branding app on, pushes by digest, and a per-channel merge job assembles
+# the multi-arch manifest under that channel's tags for both registries.
 #
 # Triggers:
 #   * Push to main           -> production: production, latest, sha-<short>
@@ -162,8 +162,88 @@ jobs:
           [ "$ok" = "1" ] || { echo "smoke failed"; exit 1; }
           echo "smoke passed"
 
-      # CVE scan of the locally loaded smoke image. Report-only (exit-code 0), so a
-      # finding never blocks the build; results land in the repo Security tab.
+      # The branding app runs only with BRANDING_APP=true, so it gets a boot of its own.
+      - name: Branding smoke - ${{ matrix.channel }}/${{ matrix.arch }}
+        env:
+          ADMIN_PASSWORD: smoketest
+        run: |
+          set -euo pipefail
+          img=opencloud:smoke-${{ matrix.channel }}-${{ matrix.arch }}
+          name=oc-branding-${{ matrix.channel }}-${{ matrix.arch }}
+          base=https://127.0.0.1:9200
+          cd "$(mktemp -d)"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          docker run -d --name "$name" -p 127.0.0.1:9200:9200 \
+            -e IDM_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+            -e OC_URL=https://localhost:9200 \
+            -e OC_INSECURE=true \
+            -e PROXY_ENABLE_BASIC_AUTH=true \
+            -e BRANDING_APP=true \
+            "$img"
+          cleanup() { echo "== last logs =="; docker logs "$name" 2>&1 | tail -80 || true; docker rm -f "$name" >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+          fetch() { curl -skf --max-time 20 "$@"; }
+          expect() {
+            local want=$1 got
+            shift
+            got=$(curl -sk --max-time 20 -o /dev/null -w '%{http_code}' "$@") || true
+            [ "$got" = "$want" ] || { echo "expected $want, got $got for $*"; return 1; }
+          }
+          wait_up() {
+            for _ in $(seq 1 60); do
+              if fetch "$base/status.php" >/dev/null && [ "$(fetch "$base/brandingsvc/health")" = ok ]; then return 0; fi
+              sleep 3
+            done
+            echo "OpenCloud or brandingd did not come up"; return 1
+          }
+          admin=(-u "admin:$ADMIN_PASSWORD" -H 'X-Branding-Request: 1')
+          wait_up
+
+          echo "== base theme matches the server =="
+          docker run --rm --entrypoint cat "$img" /usr/local/share/opencloud-branding/base-theme.json | jq -S '.clients.web.themes' > baked.json
+          fetch "$base/themes/opencloud/theme.json" | jq -S '.clients.web.themes' > served.json
+          diff baked.json served.json
+
+          echo "== app is registered =="
+          fetch "$base/config.json" | jq -e '.external_apps[] | select(.id == "branding")' >/dev/null
+
+          echo "== refusals =="
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' | base64 -d > logo.png
+          expect 401 -H 'X-Branding-Request: 1' -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/logo"
+          expect 403 -u "admin:$ADMIN_PASSWORD" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/logo"
+          expect 405 -X OPTIONS "$base/brandingsvc/api/image/logo"
+          expect 405 "${admin[@]}" -X OPTIONS --data-binary @logo.png "$base/brandingsvc/api/image/logo"
+          fetch "${admin[@]}" "$base/brandingsvc/api/state" | jq -e '.logo == ""'
+
+          echo "== admin upload =="
+          expect 200 "${admin[@]}" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/logo"
+          fetch "$base/themes/opencloud/theme.json" > theme.json
+          jq -e '.common.logo | startswith("themes/_branding/logo-")' theme.json
+          jq -e '.common.logo as $l | .clients.web.defaults.logo == $l and any(.clients.web.themes[]; .isDark) and all(.clients.web.themes[]; (.logo // $l) == $l)' theme.json
+          fetch "$base/$(jq -r '.common.logo' theme.json)" -o served-logo.png
+          cmp logo.png served-logo.png
+
+          echo "== svg is sanitised =="
+          printf '%s' '<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><script>alert(2)</script><rect width="1" height="1"/></svg>' > evil.svg
+          expect 200 "${admin[@]}" -X PUT --data-binary @evil.svg "$base/brandingsvc/api/image/logo-dark"
+          dark=$(fetch "$base/themes/opencloud/theme.json" | jq -r '[.clients.web.themes[] | select(.isDark)][0].logo')
+          case "$dark" in themes/_branding/logo-dark-*.svg) ;; *) echo "dark logo is $dark"; exit 1 ;; esac
+          fetch "$base/$dark" -o stored.svg
+          if grep -qiE 'script|onload|alert' stored.svg; then echo "SVG was not sanitised"; cat stored.svg; exit 1; fi
+          grep -q '<rect' stored.svg
+
+          echo "== login background after restart =="
+          expect 200 "${admin[@]}" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/background"
+          docker restart "$name" >/dev/null
+          wait_up
+          fetch "$base/signin/v1/identifier" > identifier.html
+          grep -q 'data-bg-img="/brandingsvc/login-background"' identifier.html
+          fetch "$base/brandingsvc/login-background" -o background.png
+          cmp logo.png background.png
+          echo "branding smoke passed"
+
+      # CVE scan of the locally-loaded smoke image. Report-only (exit-code 0) so a
+      # finding never blocks the build - results land in the repo Security tab.
       - name: Scan image for CVEs (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

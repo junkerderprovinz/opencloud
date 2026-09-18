@@ -169,3 +169,42 @@ func TestInvalidStateIsMovedAside(t *testing.T) {
 		t.Errorf("moved file = %q, want the original content", b)
 	}
 }
+
+func TestMovedAsideStateCanBePutBack(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.SetImage(imagefmt.Logo, "png", []byte("logo")); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := s.SetImage(imagefmt.Background, "jpg", []byte("background"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	good, err := os.ReadFile(s.StateFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	broken := strings.Replace(string(good), "\n}", ",\n}", 1)
+	if err := os.WriteFile(s.StateFile, []byte(broken), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The second start finds the empty state the first one wrote.
+	for range 2 {
+		if err := s.Regenerate(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(s.StateFile, good, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := s.Load(); err != nil || st != saved {
+		t.Errorf("state = %+v, err %v, want %+v", st, err, saved)
+	}
+	for _, name := range []string{saved.Logo, saved.Background} {
+		if _, err := os.Stat(filepath.Join(s.AssetsDir, name)); err != nil {
+			t.Errorf("%s: %v", name, err)
+		}
+	}
+}

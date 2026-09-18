@@ -186,15 +186,6 @@ BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
 BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
 _branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
 
-# Any IDP_LOGIN_BACKGROUND_URL hides OpenCloud's login artwork, so it needs a saved image.
-_bg_file=""
-if [ -f "${BRANDING_STATE}" ]; then
-    _bg_file="$(sed -n 's/^  "background": "\([^"]*\)".*/\1/p' "${BRANDING_STATE}")"
-    case "${_bg_file}" in
-        *[!a-z0-9.-]*) _bg_file="" ;;
-    esac
-fi
-
 # Only a file that starts with the marker is ours to rewrite or remove.
 _own_proxy="false"
 if [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}")" != "${BRANDING_PROXY_MARKER}" ]; then
@@ -235,6 +226,36 @@ EOF
     if [ "$(id -u)" = "0" ]; then
         chown -R "${PUID}:${PGID}" "${DATA_DIR}/web" "${DATA_DIR}/branding" "${BRANDING_PROXY}"
     fi
+else
+    rm -rf "${BRANDING_APPS_DIR}"
+    if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
+        rm -f "${BRANDING_PROXY}"
+        echo "[entrypoint] BRANDING_APP=false: removed the managed ${BRANDING_PROXY}"
+    fi
+fi
+
+# The saved themes list is a copy of the base theme, which a new image can
+# change. brandingd also moves a corrupt state.json aside and drops image names
+# it does not trust, so the background below is read after it ran.
+if [ -f "${BRANDING_STATE}" ]; then
+    # shellcheck disable=SC2086
+    if BRANDING_DATA_DIR="${DATA_DIR}" ${DROP} /usr/local/bin/brandingd -regenerate; then
+        echo "[entrypoint] saved branding regenerated for this image's base theme"
+    else
+        echo "[entrypoint] WARNING: brandingd -regenerate exited with $?, saved branding left as it was"
+    fi
+fi
+
+# Any IDP_LOGIN_BACKGROUND_URL hides OpenCloud's login artwork, so it needs a saved image.
+_bg_file=""
+if [ -f "${BRANDING_STATE}" ]; then
+    _bg_file="$(sed -n 's/^  "background": "\([^"]*\)".*/\1/p' "${BRANDING_STATE}")"
+    case "${_bg_file}" in
+        *[!a-z0-9.-]*) _bg_file="" ;;
+    esac
+fi
+
+if [ "${_branding}" = "true" ]; then
     _bg_active="false"
     if [ -n "${_bg_file}" ]; then
         export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
@@ -253,24 +274,8 @@ EOF
             sleep 5
         done' &
     echo "[entrypoint] branding admin app enabled (app menu -> Branding, admins only)"
-else
-    rm -rf "${BRANDING_APPS_DIR}"
-    if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
-        rm -f "${BRANDING_PROXY}"
-        echo "[entrypoint] BRANDING_APP=false: removed the managed ${BRANDING_PROXY}"
-    fi
-    # The saved themes list is a copy of the base theme, which a new image can change.
-    if [ -f "${BRANDING_STATE}" ]; then
-        # shellcheck disable=SC2086
-        if BRANDING_DATA_DIR="${DATA_DIR}" ${DROP} /usr/local/bin/brandingd -regenerate; then
-            echo "[entrypoint] saved branding regenerated for this image's base theme"
-        else
-            echo "[entrypoint] WARNING: brandingd -regenerate exited with $?, saved branding left as it was"
-        fi
-    fi
-    if [ -n "${_bg_file}" ]; then
-        export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"
-    fi
+elif [ -n "${_bg_file}" ]; then
+    export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"
 fi
 
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes

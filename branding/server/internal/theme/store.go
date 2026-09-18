@@ -56,7 +56,8 @@ func (s *Store) Load() (State, error) {
 }
 
 // Regenerate rewrites the overlay from the saved state. brandingd calls it on
-// start, because a new image can bring a new base theme.
+// start, because a new image can bring a new base theme; it deletes no images,
+// so a state.json that was moved aside can still be put back.
 func (s *Store) Regenerate() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -138,7 +139,10 @@ func (s *Store) update(change func(*State) error) (State, error) {
 	if err := change(&st); err != nil {
 		return State{}, err
 	}
-	return st, s.commit(st)
+	if err := s.commit(st); err != nil {
+		return State{}, err
+	}
+	return st, s.removeUnused(st)
 }
 
 func (s *Store) commit(st State) error {
@@ -176,10 +180,7 @@ func (s *Store) commit(st State) error {
 	if err != nil {
 		return err
 	}
-	if err := writeAtomic(overlayPath, out); err != nil {
-		return err
-	}
-	return s.removeUnused(st)
+	return writeAtomic(overlayPath, out)
 }
 
 func (s *Store) removeUnused(st State) error {

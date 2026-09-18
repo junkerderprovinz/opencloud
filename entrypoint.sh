@@ -182,6 +182,7 @@ fi
 BRANDING_SHARE="/usr/local/share/opencloud-branding"
 BRANDING_APPS_DIR="${DATA_DIR}/web/assets/apps/branding"
 BRANDING_STATE="${DATA_DIR}/branding/state.json"
+BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
 BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
 _branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
 
@@ -194,17 +195,34 @@ if [ -f "${BRANDING_STATE}" ]; then
     esac
 fi
 
-if [ "${_branding}" = "true" ] && [ -f "${CONFIG_DIR}/proxy.yaml" ] \
-    && ! grep -qF "${BRANDING_PROXY_MARKER}" "${CONFIG_DIR}/proxy.yaml"; then
-    echo "[entrypoint] WARNING: BRANDING_APP=true but ${CONFIG_DIR}/proxy.yaml is your own file - branding app not enabled (add the /brandingsvc/ route from the README to it yourself)"
-    _branding="false"
+# Only a file that starts with the marker is ours to rewrite or remove.
+_own_proxy="false"
+if [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}")" != "${BRANDING_PROXY_MARKER}" ]; then
+    _own_proxy="true"
+fi
+
+# The route counts only when endpoint and backend sit in the same list item.
+if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
+    if awk '
+        /^[[:space:]]*-[[:space:]]/ { if (ep && be) found = 1; ep = 0; be = 0 }
+        /^[[:space:]]*(-[[:space:]]+)?endpoint:[[:space:]]*["\047]?\/brandingsvc\/["\047]?[[:space:]]*(#.*)?$/ { ep = 1 }
+        /^[[:space:]]*(-[[:space:]]+)?backend:[[:space:]]*["\047]?http:\/\/127\.0\.0\.1:9299\/?["\047]?[[:space:]]*(#.*)?$/ { be = 1 }
+        END { exit !(found || (ep && be)) }
+    ' "${BRANDING_PROXY}"; then
+        echo "[entrypoint] branding app uses the /brandingsvc/ route from your ${BRANDING_PROXY}"
+    else
+        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${BRANDING_PROXY} has no /brandingsvc/ route - branding app not enabled (add the route from the README to it)"
+        _branding="false"
+    fi
 fi
 
 if [ "${_branding}" = "true" ]; then
+    # Removing the directory itself drops a symlink instead of following it.
+    rm -rf "${BRANDING_APPS_DIR}"
     mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding"
-    rm -rf "${BRANDING_APPS_DIR:?}/"*
     cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"
-    cat > "${CONFIG_DIR}/proxy.yaml" <<EOF
+    if [ "${_own_proxy}" = "false" ]; then
+        cat > "${BRANDING_PROXY}" <<EOF
 ${BRANDING_PROXY_MARKER}
 additional_policies:
   - name: default
@@ -213,8 +231,9 @@ additional_policies:
         backend: http://127.0.0.1:9299
         unprotected: true
 EOF
+    fi
     if [ "$(id -u)" = "0" ]; then
-        chown -R "${PUID}:${PGID}" "${DATA_DIR}/web" "${DATA_DIR}/branding" "${CONFIG_DIR}/proxy.yaml"
+        chown -R "${PUID}:${PGID}" "${DATA_DIR}/web" "${DATA_DIR}/branding" "${BRANDING_PROXY}"
     fi
     _bg_active="false"
     if [ -n "${_bg_file}" ]; then
@@ -223,21 +242,31 @@ EOF
     fi
     _scheme="https"
     [ "$(printf '%s' "${PROXY_TLS}" | tr '[:upper:]' '[:lower:]')" = "false" ] && _scheme="http"
-    (
-        while :; do
-            # shellcheck disable=SC2086
-            BRANDING_OPENCLOUD_URL="${_scheme}://127.0.0.1:9200" \
-            BRANDING_DATA_DIR="${DATA_DIR}" \
-            BRANDING_LOGIN_BACKGROUND_ACTIVE="${_bg_active}" \
-                ${DROP} /usr/local/bin/brandingd || echo "[entrypoint] brandingd exited with $?, restarting in 5s"
+    # brandingd reaches OpenCloud through the proxy, on whatever port it listens.
+    _proxy_addr="${PROXY_HTTP_ADDR:-0.0.0.0:9200}"
+    # shellcheck disable=SC2086
+    BRANDING_OPENCLOUD_URL="${_scheme}://127.0.0.1:${_proxy_addr##*:}" \
+    BRANDING_DATA_DIR="${DATA_DIR}" \
+    BRANDING_LOGIN_BACKGROUND_ACTIVE="${_bg_active}" \
+        ${DROP} sh -c 'while :; do
+            /usr/local/bin/brandingd || echo "[entrypoint] brandingd exited with $?, restarting in 5s"
             sleep 5
-        done
-    ) &
+        done' &
     echo "[entrypoint] branding admin app enabled (app menu -> Branding, admins only)"
 else
     rm -rf "${BRANDING_APPS_DIR}"
-    if [ -f "${CONFIG_DIR}/proxy.yaml" ] && grep -qF "${BRANDING_PROXY_MARKER}" "${CONFIG_DIR}/proxy.yaml"; then
-        rm -f "${CONFIG_DIR}/proxy.yaml"
+    if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
+        rm -f "${BRANDING_PROXY}"
+        echo "[entrypoint] BRANDING_APP=false: removed the managed ${BRANDING_PROXY}"
+    fi
+    # The saved themes list is a copy of the base theme, which a new image can change.
+    if [ -f "${BRANDING_STATE}" ]; then
+        # shellcheck disable=SC2086
+        if BRANDING_DATA_DIR="${DATA_DIR}" ${DROP} /usr/local/bin/brandingd -regenerate; then
+            echo "[entrypoint] saved branding regenerated for this image's base theme"
+        else
+            echo "[entrypoint] WARNING: brandingd -regenerate exited with $?, saved branding left as it was"
+        fi
     fi
     if [ -n "${_bg_file}" ]; then
         export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"

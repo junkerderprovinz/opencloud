@@ -53,14 +53,15 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 4. [Production vs Rolling](#4-production-vs-rolling)
 5. [How the Wrapper Works](#5-how-the-wrapper-works)
 6. [Reverse Proxy](#6-reverse-proxy)
-7. [Building Locally](#7-building-locally)
-8. [Updating](#8-updating)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Architecture](#10-architecture)
-11. [Contributing / License](#11-contributing--license)
-12. [License](#12-license)
-13. [How AI is used here](#13-how-ai-is-used-here)
-14. [Support this project](#14-support-this-project)
+7. [Branding](#7-branding)
+8. [Building Locally](#8-building-locally)
+9. [Updating](#9-updating)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Architecture](#11-architecture)
+12. [Contributing / License](#12-contributing--license)
+13. [License](#13-license)
+14. [How AI is used here](#14-how-ai-is-used-here)
+15. [Support this project](#15-support-this-project)
 <br>
 
 ## 1. Overview
@@ -156,7 +157,8 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `OC_LOG_LEVEL` | `info` | Log verbosity — `info`, `warn`, `error`, `debug`. |
 | `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
 | `PROXY_TLS` | `true` | OpenCloud terminates TLS itself on 9200. Set `false` behind a TLS-terminating proxy (see [§6](#6-reverse-proxy)). |
-| `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§9](#9-troubleshooting). |
+| `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§10](#10-troubleshooting). |
+| `BRANDING_APP` | `false` | Adds a **Branding** app where admins set the instance name, slogan, logos, favicon and login background. See [§7](#7-branding). |
 | `PUID` | `99` | User ID OpenCloud runs as — Unraid's *nobody*. |
 | `PGID` | `100` | Group ID — Unraid's *users*. |
 
@@ -260,7 +262,37 @@ By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificat
 
 <br>
 
-## 7. Building Locally
+## 7. Branding
+
+Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template) to `true` and restart the container. Accounts with the Admin role then find **Branding** in the app menu. Other accounts do not get the entry, and the service behind it refuses their changes. There an admin can set:
+
+- the instance name and slogan
+- a logo, plus an optional one for dark mode
+- the favicon
+- the background of the login page
+
+Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload and lose anything that could run code.
+
+The login page learns only at container start whether there is a custom background. So adding the first background, or removing it again, needs one container restart, and the app shows a note when that is due. Everything else shows up as soon as you save, including a swap from one background to another.
+
+Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. To go back to the OpenCloud defaults, reset the fields in the app first.
+
+The app talks to its service through the proxy route `/brandingsvc/`, which the wrapper writes to `/etc/opencloud/proxy.yaml`. If you already have your own `proxy.yaml`, the wrapper leaves it alone and turns the app on only if your file carries that route. Without it the app stays off and the log says so. Add this to your file:
+
+```yaml
+additional_policies:
+  - name: default
+    routes:
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+```
+
+The route has to sit in the policy named `default` and keep `unprotected: true`, or the login page cannot load the background. `unprotected` only skips the proxy's sign-in check; the service still asks OpenCloud about every change. The app also works when `PROXY_HTTP_ADDR` moves OpenCloud to another port.
+
+<br>
+
+## 8. Building Locally
 
 ```bash
 git clone https://github.com/junkerderprovinz/opencloud.git
@@ -280,7 +312,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t opencloud:dev --load .
 
 <br>
 
-## 8. Updating
+## 9. Updating
 
 ```bash
 docker pull junkerderprovinz/opencloud:latest
@@ -292,7 +324,7 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 <br>
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Crash loop with `search: cannot open index, metadata missing`
 
@@ -348,9 +380,15 @@ The wrapper heals ownership on start, but a data set created earlier as a differ
 `OC_URL` must exactly match the URL in your browser (scheme + host + port). Set `OC_URL` to your external https URL and `PROXY_TLS=false` (see [§6](#6-reverse-proxy)).
 </details>
 
+<details>
+<summary><b>The saved branding is gone</b></summary>
+
+If `/var/lib/opencloud/branding/state.json` cannot be read, the container moves it aside as `state.json.invalid-<time>`, names it in the log and falls back to the OpenCloud defaults. Your images stay. Fix the file, rename it back to `state.json` and restart. Do that before you save anything in the app, because a save deletes every image the new settings do not use.
+</details>
+
 <br>
 
-## 10. Architecture
+## 11. Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -370,7 +408,7 @@ The wrapper heals ownership on start, but a data set created earlier as a differ
 
 <br>
 
-## 11. Contributing / License
+## 12. Contributing / License
 
 Pull requests welcome. Issues: <https://github.com/junkerderprovinz/opencloud/issues>.
 
@@ -388,7 +426,7 @@ The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodif
 
 <br>
 
-## 12. License
+## 13. License
 
 **Copyright (C) 2026 Junker der Provinz.**
 
@@ -398,7 +436,7 @@ This repository packages OpenCloud as a container for Unraid. The packaging in t
 
 <br>
 
-## 13. How AI is used here
+## 14. How AI is used here
 
 One knight builds this, and AI is one of the tools I work with, the same way I work with an editor or a compiler. It helps me write code and documentation and it checks my work, and that saves me a good many evenings. It does not make the decisions, though. I read and understand everything before it ships, and if something here breaks, that is on me and not on the tool.
 
@@ -406,7 +444,7 @@ You do not have to take my word for it. The code is open and every release note 
 
 <br>
 
-## 14. Support this project
+## 15. Support this project
 
 Questions? Check the [support thread](https://forums.unraid.net/topic/200022-support-junkerderprovinz-opencloud/). Bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
 

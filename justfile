@@ -73,7 +73,7 @@ shellcheck:
 
 # gofmt, vet and tests for brandingd.
 test-branding:
-    cd branding/server && test -z "$(gofmt -l .)" && go vet ./... && go test ./...
+    cd branding/server && { test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }; } && go vet ./... && go test ./...
 
 # Type check, unit tests and build of the branding web extension.
 build-branding-web:

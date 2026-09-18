@@ -44,8 +44,13 @@ FROM tianon/gosu:1.19 AS gosu
 FROM --platform=$BUILDPLATFORM ${BASE} AS basetheme
 RUN opencloud version --skip-services > /tmp/opencloud-version \
  && version="$(awk '/^Version:/ {print $2; exit}' /tmp/opencloud-version)" \
- && test -n "$version" \
- && wget -q -O /tmp/base-theme.json "https://raw.githubusercontent.com/opencloud-eu/opencloud/v${version}/services/web/assets/themes/opencloud/theme.json"
+ && for attempt in 1 2 3; do \
+        wget -q -O /tmp/base-theme.json "https://raw.githubusercontent.com/opencloud-eu/opencloud/v${version}/services/web/assets/themes/opencloud/theme.json" && break; \
+        echo "base theme download failed (attempt ${attempt} of 3)"; \
+        rm -f /tmp/base-theme.json; \
+        sleep 5; \
+    done \
+ && test -s /tmp/base-theme.json
 
 # brandingd is static, so it cross-compiles on the build host.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS brandingd

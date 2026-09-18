@@ -31,10 +31,24 @@ func newServer(t *testing.T, authErr error) (*Server, http.Handler) {
 		t.Fatal(err)
 	}
 	s := &Server{
-		Store: &theme.Store{AssetsDir: filepath.Join(dir, "assets"), StateFile: filepath.Join(dir, "state.json"), Base: base},
-		Auth:  fakeAuth{err: authErr},
+		Store: &theme.Store{
+			AssetsDir: filepath.Join(dir, "web", "assets", "themes", "_branding"),
+			StateFile: filepath.Join(dir, "branding", "state.json"),
+			Base:      base,
+		},
+		Auth: fakeAuth{err: authErr},
 	}
 	return s, s.Handler()
+}
+
+func writeFile(t *testing.T, path string, data []byte) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func do(h http.Handler, method, path string, body []byte, header map[string]string) *httptest.ResponseRecorder {
@@ -167,5 +181,32 @@ func TestLoginBackgroundCaching(t *testing.T) {
 	again := do(h, http.MethodGet, "/brandingsvc/login-background", nil, map[string]string{"If-None-Match": rec.Header().Get("ETag")})
 	if again.Code != http.StatusNotModified {
 		t.Errorf("revalidation = %d, want 304", again.Code)
+	}
+}
+
+func TestSavedImageNamesMustBeAssetNames(t *testing.T) {
+	cases := []struct {
+		background string
+		wantStatus int
+		wantURL    string
+	}{
+		{"../../etc/opencloud/opencloud.yaml", http.StatusNotFound, ""},
+		{"background-0123456789ab.png", http.StatusOK, "/themes/_branding/background-0123456789ab.png"},
+	}
+	for _, c := range cases {
+		s, h := newServer(t, nil)
+		writeFile(t, filepath.Join(s.Store.AssetsDir, filepath.FromSlash(c.background)), pngBytes)
+		writeFile(t, s.Store.StateFile, []byte(`{"background": "`+c.background+`"}`))
+
+		if rec := do(h, http.MethodGet, "/brandingsvc/login-background", nil, nil); rec.Code != c.wantStatus {
+			t.Errorf("%s: login-background = %d, want %d", c.background, rec.Code, c.wantStatus)
+		}
+		var v view
+		if err := json.Unmarshal(do(h, http.MethodGet, "/brandingsvc/api/state", nil, admin).Body.Bytes(), &v); err != nil {
+			t.Fatal(err)
+		}
+		if v.Background != c.wantURL {
+			t.Errorf("%s: state background = %q, want %q", c.background, v.Background, c.wantURL)
+		}
 	}
 }

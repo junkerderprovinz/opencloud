@@ -143,3 +143,29 @@ func TestInvalidOverlayIsMovedAside(t *testing.T) {
 		t.Errorf("expected exactly 1 theme.json.invalid-* file, found %d", invalidCount)
 	}
 }
+
+func TestInvalidStateIsMovedAside(t *testing.T) {
+	s := newStore(t)
+	if err := os.MkdirAll(filepath.Dir(s.StateFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.StateFile, []byte("{not json"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Regenerate(); err != nil {
+		t.Fatalf("Regenerate must not fail on invalid state: %v", err)
+	}
+	if st, err := s.Load(); err != nil || st != (State{}) {
+		t.Errorf("state = %+v, err %v, want empty state", st, err)
+	}
+	moved, err := filepath.Glob(s.StateFile + ".invalid-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(moved) != 1 {
+		t.Fatalf("want exactly 1 state.json.invalid-* file, found %v", moved)
+	}
+	if b, _ := os.ReadFile(moved[0]); string(b) != "{not json" {
+		t.Errorf("moved file = %q, want the original content", b)
+	}
+}

@@ -115,7 +115,15 @@ func (s *Store) load() (State, error) {
 		return st, err
 	}
 	if err := json.Unmarshal(b, &st); err != nil {
-		return st, fmt.Errorf("theme: %s: %w", s.StateFile, err)
+		return State{}, moveAside(s.StateFile, err)
+	}
+	// The names become file paths, and state.json sits on a volume that other
+	// processes can write.
+	for _, k := range []imagefmt.Kind{imagefmt.Logo, imagefmt.LogoDark, imagefmt.Favicon, imagefmt.Background} {
+		if name := field(&st, k); *name != "" && !assetName.MatchString(*name) {
+			log.Printf("theme: %s: ignoring %s %q, not an asset name", s.StateFile, k, *name)
+			*name = ""
+		}
 	}
 	return st, nil
 }
@@ -152,10 +160,9 @@ func (s *Store) commit(st State) error {
 	raw, err := os.ReadFile(overlayPath)
 	switch {
 	case err == nil:
-		if err := json.Unmarshal(raw, &overlay); err != nil {
-			invalid := filepath.Join(s.AssetsDir, fmt.Sprintf("theme.json.invalid-%d", time.Now().Unix()))
-			if moveErr := os.Rename(overlayPath, invalid); moveErr == nil {
-				log.Printf("theme: moved invalid overlay to %s", invalid)
+		if jsonErr := json.Unmarshal(raw, &overlay); jsonErr != nil {
+			if err := moveAside(overlayPath, jsonErr); err != nil {
+				return err
 			}
 		}
 	case !errors.Is(err, os.ErrNotExist):
@@ -189,6 +196,17 @@ func (s *Store) removeUnused(st State) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// moveAside keeps an unreadable file for inspection and frees its name, so
+// the store starts over instead of failing on every call.
+func moveAside(path string, reason error) error {
+	dst := fmt.Sprintf("%s.invalid-%d", path, time.Now().Unix())
+	if err := os.Rename(path, dst); err != nil {
+		return fmt.Errorf("theme: %s: %v, and moving it aside failed: %w", path, reason, err)
+	}
+	log.Printf("theme: %s: %v, moved to %s", path, reason, dst)
 	return nil
 }
 

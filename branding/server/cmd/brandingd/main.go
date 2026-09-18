@@ -4,6 +4,8 @@ package main
 
 import (
 	"crypto/tls"
+	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -18,21 +20,34 @@ import (
 )
 
 func main() {
+	if err := run(os.Args[1:]); err != nil {
+		log.Fatalf("brandingd: %v", err)
+	}
+}
+
+// run serves the API until it fails. With -regenerate it only rewrites the
+// theme overlay, which keeps the saved branding current while the app is off.
+func run(args []string) error {
+	flags := flag.NewFlagSet("brandingd", flag.ContinueOnError)
+	regenerate := flags.Bool("regenerate", false, "rewrite the theme overlay from the saved state and exit")
+	if err := flags.Parse(args); err != nil {
+		return err
+	}
 	listen := env("BRANDING_LISTEN", "127.0.0.1:9299")
 	dataDir := env("BRANDING_DATA_DIR", "/var/lib/opencloud")
 	basePath := env("BRANDING_BASE_THEME", "/usr/local/share/opencloud-branding/base-theme.json")
 	openCloud := env("BRANDING_OPENCLOUD_URL", "https://127.0.0.1:9200")
 
 	if !isLoopback(listen) {
-		log.Fatalf("brandingd: refusing to listen on %s, only loopback is allowed", listen)
+		return fmt.Errorf("refusing to listen on %s, only loopback is allowed", listen)
 	}
 	target, err := url.Parse(openCloud)
 	if err != nil || !isLoopback(target.Host) {
-		log.Fatalf("brandingd: BRANDING_OPENCLOUD_URL must point at loopback, got %q", openCloud)
+		return fmt.Errorf("BRANDING_OPENCLOUD_URL must point at loopback, got %q", openCloud)
 	}
 	base, err := theme.LoadBase(basePath)
 	if err != nil {
-		log.Fatalf("brandingd: %v", err)
+		return err
 	}
 	store := &theme.Store{
 		AssetsDir: filepath.Join(dataDir, "web", "assets", "themes", "_branding"),
@@ -40,7 +55,10 @@ func main() {
 		Base:      base,
 	}
 	if err := store.Regenerate(); err != nil {
-		log.Fatalf("brandingd: rebuilding the theme overlay: %v", err)
+		return fmt.Errorf("rebuilding the theme overlay: %w", err)
+	}
+	if *regenerate {
+		return nil
 	}
 	handler := (&api.Server{
 		Store: store,
@@ -66,7 +84,7 @@ func main() {
 		WriteTimeout:      2 * time.Minute,
 	}
 	log.Printf("brandingd: listening on %s", listen)
-	log.Fatal(srv.ListenAndServe())
+	return srv.ListenAndServe()
 }
 
 func env(key, fallback string) string {

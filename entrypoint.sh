@@ -176,6 +176,74 @@ elif [ "${_fts}" = "true" ]; then
     echo "[entrypoint] FULLTEXT_SEARCH=true but TIKA_URL is empty -> full-text search not enabled"
 fi
 
+# BRANDING_APP=true adds an admin-only "Branding" app to the web UI: the extension
+# in the apps folder, the proxy route /brandingsvc/ and brandingd on loopback.
+# Switching it off removes the editor and keeps the saved branding in effect.
+BRANDING_SHARE="/usr/local/share/opencloud-branding"
+BRANDING_APPS_DIR="${DATA_DIR}/web/assets/apps/branding"
+BRANDING_STATE="${DATA_DIR}/branding/state.json"
+BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
+_branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
+
+# Any IDP_LOGIN_BACKGROUND_URL hides OpenCloud's login artwork, so it needs a saved image.
+_bg_file=""
+if [ -f "${BRANDING_STATE}" ]; then
+    _bg_file="$(sed -n 's/^  "background": "\([^"]*\)".*/\1/p' "${BRANDING_STATE}")"
+    case "${_bg_file}" in
+        *[!a-z0-9.-]*) _bg_file="" ;;
+    esac
+fi
+
+if [ "${_branding}" = "true" ] && [ -f "${CONFIG_DIR}/proxy.yaml" ] \
+    && ! grep -qF "${BRANDING_PROXY_MARKER}" "${CONFIG_DIR}/proxy.yaml"; then
+    echo "[entrypoint] WARNING: BRANDING_APP=true but ${CONFIG_DIR}/proxy.yaml is your own file - branding app not enabled (add the /brandingsvc/ route from the README to it yourself)"
+    _branding="false"
+fi
+
+if [ "${_branding}" = "true" ]; then
+    mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding"
+    rm -rf "${BRANDING_APPS_DIR:?}/"*
+    cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"
+    cat > "${CONFIG_DIR}/proxy.yaml" <<EOF
+${BRANDING_PROXY_MARKER}
+additional_policies:
+  - name: default
+    routes:
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+EOF
+    if [ "$(id -u)" = "0" ]; then
+        chown -R "${PUID}:${PGID}" "${DATA_DIR}/web" "${DATA_DIR}/branding" "${CONFIG_DIR}/proxy.yaml"
+    fi
+    _bg_active="false"
+    if [ -n "${_bg_file}" ]; then
+        export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
+        _bg_active="true"
+    fi
+    _scheme="https"
+    [ "$(printf '%s' "${PROXY_TLS}" | tr '[:upper:]' '[:lower:]')" = "false" ] && _scheme="http"
+    (
+        while :; do
+            # shellcheck disable=SC2086
+            BRANDING_OPENCLOUD_URL="${_scheme}://127.0.0.1:9200" \
+            BRANDING_DATA_DIR="${DATA_DIR}" \
+            BRANDING_LOGIN_BACKGROUND_ACTIVE="${_bg_active}" \
+                ${DROP} /usr/local/bin/brandingd || echo "[entrypoint] brandingd exited with $?, restarting in 5s"
+            sleep 5
+        done
+    ) &
+    echo "[entrypoint] branding admin app enabled (app menu -> Branding, admins only)"
+else
+    rm -rf "${BRANDING_APPS_DIR}"
+    if [ -f "${CONFIG_DIR}/proxy.yaml" ] && grep -qF "${BRANDING_PROXY_MARKER}" "${CONFIG_DIR}/proxy.yaml"; then
+        rm -f "${CONFIG_DIR}/proxy.yaml"
+    fi
+    if [ -n "${_bg_file}" ]; then
+        export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"
+    fi
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. On later boots the file exists and init exits non-zero,
 # which is ignored.

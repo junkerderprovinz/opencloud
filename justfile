@@ -56,8 +56,12 @@ run:
         -e IDM_ADMIN_PASSWORD=changeme -e OC_URL=https://localhost:9200 -e OC_INSECURE=true \
         -v "$PWD/.dev-config:/etc/opencloud" -v "$PWD/.dev-data:/var/lib/opencloud" {{IMAGE}}
 
-# All lint checks, as in lint.yml.
-lint: hadolint shellcheck
+# ---------------------------------------------------------------------------
+# Lint  (mirrors lint.yml)
+# ---------------------------------------------------------------------------
+
+# All lint checks.
+lint: hadolint shellcheck test-branding
 
 # Hadolint the Dockerfile.
 hadolint:
@@ -67,7 +71,19 @@ hadolint:
 shellcheck:
     shellcheck -S warning entrypoint.sh print-banner.sh
 
-# Regenerate the README banners (Node, resvg and opentype.js, global installs).
+# gofmt, vet and tests for brandingd.
+test-branding:
+    cd branding/server && test -z "$(gofmt -l .)" && go vet ./... && go test ./...
+
+# Type check, unit tests and build of the branding web extension.
+build-branding-web:
+    cd branding/web && pnpm install --frozen-lockfile && pnpm check:types && pnpm test:unit --run && pnpm build
+
+# ---------------------------------------------------------------------------
+# Assets
+# ---------------------------------------------------------------------------
+
+# Regenerate the README banners (Node + resvg + opentype.js, global installs).
 banner:
     node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
 

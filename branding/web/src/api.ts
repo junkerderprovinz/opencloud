@@ -12,7 +12,7 @@ export interface BrandingState {
   loginBackgroundActive: boolean
 }
 
-export type BrandingHttp = Pick<HttpClient, 'get' | 'put' | 'delete'>
+export type BrandingHttp = Pick<HttpClient, 'get' | 'put' | 'request'>
 
 const MB = 1024 * 1024
 
@@ -54,8 +54,10 @@ export function brandingApi(http: BrandingHttp) {
       const config = { headers: { ...headers, 'Content-Type': 'application/octet-stream' } }
       return (await http.put<BrandingState>(`${base}/image/${kind}`, file, config)).data as BrandingState
     },
+    // HttpClient.delete hands its config to axios in a slot axios ignores.
     async clearImage(kind: ImageKind) {
-      return (await http.delete<BrandingState>(`${base}/image/${kind}`, undefined, { headers })).data as BrandingState
+      const config = { method: 'DELETE', url: `${base}/image/${kind}`, headers }
+      return (await http.request<BrandingState>(config)).data as BrandingState
     }
   }
 }

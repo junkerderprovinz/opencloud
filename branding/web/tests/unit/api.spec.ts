@@ -1,5 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { brandingApi, validateUpload, type BrandingHttp, type BrandingState } from '../../src/api'
+import { describe, expect, it } from 'vitest'
+import { HttpClient } from '@opencloud-eu/web-pkg'
+import { brandingApi, validateUpload, type BrandingState } from '../../src/api'
 
 const state: BrandingState = {
   name: '',
@@ -28,27 +29,42 @@ describe('validateUpload', () => {
 })
 
 describe('brandingApi', () => {
-  it('sends the branding header on every call', async () => {
-    const http = {
-      get: vi.fn().mockResolvedValue({ data: state }),
-      put: vi.fn().mockResolvedValue({ data: state }),
-      delete: vi.fn().mockResolvedValue({ data: state })
-    }
-    const api = brandingApi(http as unknown as BrandingHttp)
+  // The real HttpClient, because axios decides which arguments reach the wire.
+  function recordingApi() {
+    const sent: { method?: string; url?: string; data?: unknown; branding?: unknown }[] = []
+    const http = new HttpClient({
+      adapter: async (config) => {
+        sent.push({
+          method: config.method,
+          url: config.url,
+          data: config.data,
+          branding: config.headers['X-Branding-Request']
+        })
+        return { data: state, status: 200, statusText: 'OK', headers: {}, config }
+      }
+    })
+    return { api: brandingApi(http), sent }
+  }
+
+  it('sends the branding header on every request', async () => {
+    const { api, sent } = recordingApi()
     await api.state()
     await api.saveText('Knight Cloud', 'Files, forged')
     await api.uploadImage('logo', new Blob(['x']))
     await api.clearImage('favicon')
 
-    for (const call of [...http.get.mock.calls, ...http.put.mock.calls, ...http.delete.mock.calls]) {
-      expect(call[call.length - 1].headers['X-Branding-Request']).toBe('1')
-    }
-    expect(http.get).toHaveBeenCalledWith('brandingsvc/api/state', expect.anything())
-    expect(http.put).toHaveBeenCalledWith(
-      'brandingsvc/api/text',
-      { name: 'Knight Cloud', slogan: 'Files, forged' },
-      expect.anything()
-    )
-    expect(http.delete).toHaveBeenCalledWith('brandingsvc/api/image/favicon', undefined, expect.anything())
+    expect(sent.map(({ method, url, branding }) => [method, url, branding])).toEqual([
+      ['get', 'brandingsvc/api/state', '1'],
+      ['put', 'brandingsvc/api/text', '1'],
+      ['put', 'brandingsvc/api/image/logo', '1'],
+      ['delete', 'brandingsvc/api/image/favicon', '1']
+    ])
+  })
+
+  it('sends name and slogan as JSON', async () => {
+    const { api, sent } = recordingApi()
+    await api.saveText('Knight Cloud', 'Files, forged')
+
+    expect(JSON.parse(sent[0].data as string)).toEqual({ name: 'Knight Cloud', slogan: 'Files, forged' })
   })
 })

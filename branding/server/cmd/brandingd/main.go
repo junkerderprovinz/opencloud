@@ -76,12 +76,13 @@ func run(args []string) error {
 		},
 		LoginBackgroundActive: os.Getenv("BRANDING_LOGIN_BACKGROUND_ACTIVE") == "true",
 	}).Handler()
+	// The api handlers set body deadlines per transfer; a server-wide one
+	// would cut off a 25 MB background on a slow link.
 	srv := &http.Server{
 		Addr:              listen,
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
-		ReadTimeout:       2 * time.Minute,
-		WriteTimeout:      2 * time.Minute,
+		IdleTimeout:       2 * time.Minute,
 	}
 	log.Printf("brandingd: listening on %s", listen)
 	return srv.ListenAndServe()

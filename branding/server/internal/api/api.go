@@ -12,12 +12,16 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/junkerderprovinz/opencloud/branding/server/internal/auth"
 	"github.com/junkerderprovinz/opencloud/branding/server/internal/imagefmt"
 	"github.com/junkerderprovinz/opencloud/branding/server/internal/svgclean"
 	"github.com/junkerderprovinz/opencloud/branding/server/internal/theme"
 )
+
+// transferTimeout bounds an image upload and the background download.
+const transferTimeout = 10 * time.Minute
 
 // Authorizer decides whether a request may read or change the branding.
 type Authorizer interface {
@@ -116,6 +120,7 @@ func (s *Server) loginBackground(w http.ResponseWriter, r *http.Request) {
 	// An SVG background opened on its own must not run anything, whatever
 	// the sanitiser missed. As a CSS background the policy does not apply.
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Now().Add(transferTimeout))
 	http.ServeContent(w, r, st.Background, info.ModTime(), f)
 }
 
@@ -148,6 +153,7 @@ func (s *Server) putImage(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(transferTimeout))
 	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, imagefmt.MaxBytes(kind)))
 	var tooLarge *http.MaxBytesError
 	switch {

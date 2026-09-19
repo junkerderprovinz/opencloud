@@ -85,14 +85,14 @@ const caption = computed(() => {
   return preview.source === 'default' && preview.url ? $gettext('OpenCloud default') : ''
 })
 
-// The drop removes the chosen menu item. After keyboard use the focus goes back to the menu
-// button; after a click it stays put, because focus on the button opens its tooltip.
-let usedKeyboard = false
+// The drop removes the chosen item, so the focus goes back to the menu button. After a
+// pointer press it would open the button's tooltip instead.
+let usedPointer = false
 const noteInput = (event: Event) => {
-  usedKeyboard = event.type === 'keydown'
+  usedPointer = event.type === 'pointerdown'
 }
 function focusMenuButton() {
-  if (usedKeyboard) {
+  if (!usedPointer) {
     document.getElementById(menuId).focus()
   }
 }

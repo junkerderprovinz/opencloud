@@ -134,9 +134,13 @@ describe('ImageSection', () => {
     expect(wrapper.find('#branding-logo-dark-menu + [title]').attributes('title')).toBe('Logo for dark mode')
   })
 
-  it('gives the focus back to the menu button only after keyboard use', async () => {
+  it('gives the focus back to the menu button unless a pointer chose the action', async () => {
     const wrapper = mountSection({ preview: { url: logo, source: 'custom' } })
     const reset = actions(wrapper).find((action) => action.name === 'reset')
+
+    reset.handler()
+    expect(document.activeElement.id).toBe('branding-logo-menu')
+    document.getElementById('branding-logo-menu').blur()
 
     await wrapper.find('section').trigger('pointerdown')
     reset.handler()

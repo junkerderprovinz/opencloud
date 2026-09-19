@@ -114,7 +114,7 @@ async function report(change: Promise<boolean>, done: string, failed: string, ki
 async function saveText() {
   const fromSave = document.activeElement.id === 'branding-save'
   await report(branding.saveText(), $gettext('Name and slogan saved'), $gettext('Name and slogan could not be saved'))
-  if (fromSave) {
+  if (fromSave && document.activeElement === document.body) {
     document.getElementById('branding-name').focus()
   }
 }

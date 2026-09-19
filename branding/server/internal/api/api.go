@@ -71,6 +71,12 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 		case errors.Is(err, auth.ErrNoCredentials):
 			http.Error(w, "authentication required", http.StatusUnauthorized)
 		default:
+			// A bare ErrForbidden is an ordinary refusal. A wrapped one carries
+			// an upstream failure, such as a wrong BRANDING_OPENCLOUD_URL, that
+			// the admin only sees as the same 403.
+			if err != auth.ErrForbidden {
+				log.Printf("brandingd: permission check: %v", err)
+			}
 			http.Error(w, "forbidden", http.StatusForbidden)
 		}
 	}
@@ -84,6 +90,7 @@ func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 func (s *Server) loginBackground(w http.ResponseWriter, r *http.Request) {
 	st, err := s.Store.Load()
 	if err != nil {
+		log.Printf("brandingd: %v", err)
 		http.Error(w, "state unavailable", http.StatusInternalServerError)
 		return
 	}
@@ -99,18 +106,27 @@ func (s *Server) loginBackground(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 	info, err := f.Stat()
 	if err != nil {
+		log.Printf("brandingd: %v", err)
 		http.Error(w, "background unavailable", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("ETag", `"`+st.Background+`"`)
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// An SVG background opened on its own must not run anything, whatever
+	// the sanitiser missed. As a CSS background the policy does not apply.
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox")
 	http.ServeContent(w, r, st.Background, info.ModTime(), f)
 }
 
 func (s *Server) getState(w http.ResponseWriter, _ *http.Request) {
 	st, err := s.Store.Load()
-	s.respond(w, st, err)
+	if err != nil {
+		log.Printf("brandingd: %v", err)
+		http.Error(w, "loading failed", http.StatusInternalServerError)
+		return
+	}
+	s.respond(w, st, nil)
 }
 
 func (s *Server) putText(w http.ResponseWriter, r *http.Request) {

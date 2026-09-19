@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -69,24 +70,93 @@ func TestHealthIsPublic(t *testing.T) {
 	}
 }
 
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	return &buf
+}
+
 func TestRefusals(t *testing.T) {
+	routes := []struct {
+		method, path string
+		body         []byte
+	}{
+		{http.MethodGet, "/brandingsvc/api/state", nil},
+		{http.MethodPut, "/brandingsvc/api/text", []byte(`{"name":"Knight Cloud"}`)},
+		{http.MethodPut, "/brandingsvc/api/image/logo", pngBytes},
+		{http.MethodDelete, "/brandingsvc/api/image/logo", nil},
+	}
 	cases := []struct {
 		name    string
 		authErr error
-		method  string
+		method  string // empty for the route's own method
 		header  map[string]string
 		want    int
 	}{
 		{"options", nil, http.MethodOptions, admin, http.StatusMethodNotAllowed},
-		{"missing request header", nil, http.MethodPut, map[string]string{"Authorization": "Basic x"}, http.StatusForbidden},
-		{"no credentials", auth.ErrNoCredentials, http.MethodPut, map[string]string{"X-Branding-Request": "1"}, http.StatusUnauthorized},
-		{"not an admin", auth.ErrForbidden, http.MethodPut, admin, http.StatusForbidden},
+		{"missing request header", nil, "", map[string]string{"Authorization": "Basic x"}, http.StatusForbidden},
+		{"no credentials", auth.ErrNoCredentials, "", map[string]string{"X-Branding-Request": "1"}, http.StatusUnauthorized},
+		{"not an admin", auth.ErrForbidden, "", admin, http.StatusForbidden},
+	}
+	for _, r := range routes {
+		for _, c := range cases {
+			method := c.method
+			if method == "" {
+				method = r.method
+			}
+			_, h := newServer(t, c.authErr)
+			if rec := do(h, method, r.path, r.body, c.header); rec.Code != c.want {
+				t.Errorf("%s %s, %s: status %d, want %d", method, r.path, c.name, rec.Code, c.want)
+			}
+		}
+	}
+}
+
+func TestPermissionCheckCausesAreLogged(t *testing.T) {
+	cases := []struct {
+		name    string
+		authErr error
+		lines   int
+	}{
+		{"upstream failure", fmt.Errorf("%w: dial tcp: connection refused", auth.ErrForbidden), 1},
+		{"not an admin", auth.ErrForbidden, 0},
 	}
 	for _, c := range cases {
+		logs := captureLog(t)
 		_, h := newServer(t, c.authErr)
-		if rec := do(h, c.method, "/brandingsvc/api/image/logo", pngBytes, c.header); rec.Code != c.want {
-			t.Errorf("%s: status %d, want %d", c.name, rec.Code, c.want)
+		if rec := do(h, http.MethodPut, "/brandingsvc/api/image/logo", pngBytes, admin); rec.Code != http.StatusForbidden {
+			t.Errorf("%s: status %d, want 403", c.name, rec.Code)
 		}
+		if n := strings.Count(logs.String(), "\n"); n != c.lines {
+			t.Errorf("%s: %d log lines, want %d: %q", c.name, n, c.lines, logs)
+		}
+		if strings.Contains(logs.String(), admin["Authorization"]) {
+			t.Errorf("%s: log carries the credentials: %q", c.name, logs)
+		}
+	}
+}
+
+func TestStateReadFailuresAreLogged(t *testing.T) {
+	s, h := newServer(t, nil)
+	if err := os.MkdirAll(s.Store.StateFile, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureLog(t)
+	rec := do(h, http.MethodGet, "/brandingsvc/api/state", nil, admin)
+	if rec.Code != http.StatusInternalServerError || strings.TrimSpace(rec.Body.String()) != "loading failed" {
+		t.Errorf("state = %d %q, want 500 loading failed", rec.Code, rec.Body)
+	}
+	if n := strings.Count(logs.String(), "\n"); n != 1 {
+		t.Errorf("state: %d log lines, want 1: %q", n, logs)
+	}
+	logs.Reset()
+	if rec := do(h, http.MethodGet, "/brandingsvc/login-background", nil, nil); rec.Code != http.StatusInternalServerError {
+		t.Errorf("login-background = %d, want 500", rec.Code)
+	}
+	if n := strings.Count(logs.String(), "\n"); n != 1 {
+		t.Errorf("login-background: %d log lines, want 1: %q", n, logs)
 	}
 }
 
@@ -193,6 +263,9 @@ func TestLoginBackgroundCaching(t *testing.T) {
 	rec := do(h, http.MethodGet, "/brandingsvc/login-background", nil, nil)
 	if rec.Code != http.StatusOK || rec.Header().Get("Cache-Control") != "no-cache" || rec.Header().Get("ETag") == "" {
 		t.Fatalf("background = %d, headers %v", rec.Code, rec.Header())
+	}
+	if csp := rec.Header().Get("Content-Security-Policy"); csp != "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox" {
+		t.Errorf("background CSP = %q", csp)
 	}
 	again := do(h, http.MethodGet, "/brandingsvc/login-background", nil, map[string]string{"If-None-Match": rec.Header().Get("ETag")})
 	if again.Code != http.StatusNotModified {

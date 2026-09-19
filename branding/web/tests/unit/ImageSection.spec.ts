@@ -134,6 +134,20 @@ describe('ImageSection', () => {
     expect(wrapper.find('#branding-logo-dark-menu + [title]').attributes('title')).toBe('Logo for dark mode')
   })
 
+  it('hands the chosen file on and clears the picker so the same file can be chosen again', async () => {
+    const wrapper = mountSection({ preview: { url: '', source: 'default' } })
+    const input = wrapper.find<HTMLInputElement>('input[type="file"]')
+    const file = new File(['x'], 'logo.png', { type: 'image/png' })
+    const transfer = new DataTransfer()
+    transfer.items.add(file)
+    input.element.files = transfer.files
+
+    await input.trigger('change')
+
+    expect(wrapper.emitted('upload')).toEqual([[file]])
+    expect(input.element.value).toBe('')
+  })
+
   it('gives the focus back to the menu button unless a pointer chose the action', async () => {
     const wrapper = mountSection({ preview: { url: logo, source: 'custom' } })
     const reset = actions(wrapper).find((action) => action.name === 'reset')

@@ -20,7 +20,7 @@
       :class="previewClass"
     >
       <img v-if="url" :src="url" :alt="label" :class="imageClass" />
-      <span v-else class="ext:text-role-on-surface-variant" v-text="$gettext('OpenCloud default')" />
+      <span v-else v-text="$gettext('OpenCloud default')" />
     </div>
     <p class="ext:text-sm ext:text-role-on-surface-variant" v-text="hint" />
     <slot />
@@ -51,12 +51,13 @@ const menuId = `branding-${kind}-menu`
 
 const hint = $gettext('PNG, JPEG, GIF, WebP or SVG, up to %{size} MB', { size: String(limits[kind] / MB) })
 
-// Each logo is previewed on the kind of background it is made for, not on the current theme.
+// Each logo is previewed on the kind of background it is made for, not on the current theme,
+// so its placeholder text needs a fixed colour as well.
 const previewClass = {
-  logo: 'ext:bg-white ext:p-2',
-  'logo-dark': 'ext:bg-neutral-900 ext:p-2',
-  favicon: 'ext:bg-role-surface-container ext:p-2',
-  background: 'ext:bg-role-surface-container'
+  logo: 'ext:bg-white ext:text-neutral-600 ext:p-2',
+  'logo-dark': 'ext:bg-neutral-900 ext:text-neutral-300 ext:p-2',
+  favicon: 'ext:bg-role-surface-container ext:text-role-on-surface-variant ext:p-2',
+  background: 'ext:bg-role-surface-container ext:text-role-on-surface-variant'
 }[kind]
 const imageClass =
   kind === 'background' ? 'ext:size-full ext:object-cover' : 'ext:max-h-full ext:max-w-full ext:object-contain'

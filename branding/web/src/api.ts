@@ -58,8 +58,7 @@ export function brandingApi(http: BrandingHttp) {
     async saveText(name: string, slogan: string) {
       return (await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers })).data
     },
-    // Oversized files are refused before sending. The format is left to the
-    // server, which reads the content; the browser only guesses from the name.
+    // The format is left to the server, which reads the content; the browser only guesses from the name.
     async uploadImage(kind: ImageKind, file: Blob) {
       if (file.size > limits[kind]) {
         throw new FileTooLargeError(`${kind} is larger than ${limits[kind]} bytes`)

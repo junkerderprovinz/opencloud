@@ -57,7 +57,7 @@ import ImageSection from './ImageSection.vue'
 import { reloadTheme } from './reloadTheme'
 import { useBranding } from './useBranding'
 
-type Image = { kind: ImageKind; field: 'logo' | 'logoDark' | 'favicon' | 'background'; label: string }
+type ImageSlot = { kind: ImageKind; field: 'logo' | 'logoDark' | 'favicon' | 'background'; label: string }
 
 const { $gettext } = useGettext()
 const { showMessage, showErrorMessage } = useMessages()
@@ -65,7 +65,7 @@ const branding = useBranding(brandingApi(useClientService().httpAuthenticated), 
 const { state, name, slogan, busy, textChanged } = branding
 const loadFailure = ref<Failure>()
 
-const images: Image[] = [
+const images: ImageSlot[] = [
   { kind: 'logo', field: 'logo', label: $gettext('Logo') },
   { kind: 'logo-dark', field: 'logoDark', label: $gettext('Logo for dark mode') },
   { kind: 'favicon', field: 'favicon', label: $gettext('Favicon') },
@@ -100,7 +100,7 @@ async function report(change: Promise<boolean>, done: string, failed: string, ki
 const saveText = () =>
   report(branding.saveText(), $gettext('Name and slogan saved'), $gettext('Name and slogan could not be saved'))
 
-const upload = (image: Image, file: File) =>
+const upload = (image: ImageSlot, file: File) =>
   report(
     branding.uploadImage(image.kind, file),
     $gettext('%{image} saved', { image: image.label }),
@@ -108,7 +108,7 @@ const upload = (image: Image, file: File) =>
     image.kind
   )
 
-const reset = (image: Image) =>
+const reset = (image: ImageSlot) =>
   report(
     branding.clearImage(image.kind),
     $gettext('%{image} reset to default', { image: image.label }),

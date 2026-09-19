@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { BrandingApi, BrandingState } from '../../src/api'
 import { useBranding } from '../../src/useBranding'
 
@@ -21,11 +21,15 @@ function fakeApi(): BrandingApi {
   }
 }
 
-const reloaded = async () => {}
+const reloadThemeOk = async () => {}
 
 describe('useBranding', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('keeps unsaved name and slogan when an image is uploaded or reset', async () => {
-    const branding = useBranding(fakeApi(), reloaded)
+    const branding = useBranding(fakeApi(), reloadThemeOk)
     await branding.load()
     branding.name.value = 'Unsaved name'
     branding.slogan.value = 'Unsaved slogan'
@@ -40,7 +44,7 @@ describe('useBranding', () => {
   })
 
   it('shows name and slogan as the server saved them', async () => {
-    const branding = useBranding(fakeApi(), reloaded)
+    const branding = useBranding(fakeApi(), reloadThemeOk)
     await branding.load()
     branding.name.value = '  Knight Cloud  '
 
@@ -63,7 +67,7 @@ describe('useBranding', () => {
   })
 
   it('confirms the reload after a saved change', async () => {
-    const branding = useBranding(fakeApi(), reloaded)
+    const branding = useBranding(fakeApi(), reloadThemeOk)
     await branding.load()
 
     await expect(branding.clearImage('favicon')).resolves.toBe(true)
@@ -73,7 +77,7 @@ describe('useBranding', () => {
     const api = fakeApi()
     const refused = Object.assign(new Error('status 415'), { response: { status: 415 } })
     vi.mocked(api.uploadImage).mockRejectedValueOnce(refused)
-    const branding = useBranding(api, reloaded)
+    const branding = useBranding(api, reloadThemeOk)
     await branding.load()
 
     await expect(branding.uploadImage('favicon', new Blob(['x']))).rejects.toBe(refused)

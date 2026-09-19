@@ -28,7 +28,6 @@
       ref="input"
       type="file"
       class="ext:hidden"
-      tabindex="-1"
       :aria-label="$gettext('Upload %{image}', { image: label })"
       :accept="acceptedTypes.join(',')"
       @change="picked"

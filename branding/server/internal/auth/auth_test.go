@@ -81,3 +81,14 @@ func TestRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestRejectedTokenIsAnOrdinaryRefusal(t *testing.T) {
+	c, _ := fakeOpenCloud(t, "user-1", http.StatusUnauthorized, http.StatusCreated, `{"permissions":["Logo.Write.all"]}`)
+	if err := c.Check(context.Background(), "Bearer expired"); err != ErrForbidden {
+		t.Errorf("want bare ErrForbidden, got %v", err)
+	}
+	c, _ = fakeOpenCloud(t, "user-1", http.StatusBadGateway, http.StatusCreated, `{"permissions":["Logo.Write.all"]}`)
+	if err := c.Check(context.Background(), "Bearer tok"); err == ErrForbidden || !errors.Is(err, ErrForbidden) {
+		t.Errorf("want an upstream failure wrapping ErrForbidden, got %v", err)
+	}
+}

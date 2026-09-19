@@ -19,6 +19,8 @@ var (
 	ErrNoCredentials = errors.New("auth: no credentials")
 	// ErrForbidden covers every other refusal, including upstream errors.
 	ErrForbidden = errors.New("auth: missing Logo.Write.all")
+
+	errRejected = errors.New("auth: token rejected")
 )
 
 const permission = "Logo.Write.all"
@@ -30,8 +32,8 @@ type Checker struct {
 }
 
 // Check returns nil only when OpenCloud confirms Logo.Write.all for the
-// caller. The permission list comes back empty with status 200 for a token
-// the settings service cannot resolve, so an empty list is a refusal too.
+// caller. The settings service answers a token it cannot resolve with an
+// empty 200 instead of 201, so only a 201 that lists the permission passes.
 func (c Checker) Check(ctx context.Context, authorization string) error {
 	if strings.TrimSpace(authorization) == "" {
 		return ErrNoCredentials
@@ -40,7 +42,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 		ID string `json:"id"`
 	}
 	if err := c.call(ctx, http.MethodGet, "/graph/v1.0/me", authorization, nil, http.StatusOK, &me); err != nil {
-		return fmt.Errorf("%w: %v", ErrForbidden, err)
+		return refusal(err)
 	}
 	if me.ID == "" {
 		return ErrForbidden
@@ -50,7 +52,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 		Permissions []string `json:"permissions"`
 	}
 	if err := c.call(ctx, http.MethodPost, "/api/v0/settings/permissions-list", authorization, body, http.StatusCreated, &perms); err != nil {
-		return fmt.Errorf("%w: %v", ErrForbidden, err)
+		return refusal(err)
 	}
 	for _, p := range perms.Permissions {
 		if p == permission {
@@ -58,6 +60,15 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 		}
 	}
 	return ErrForbidden
+}
+
+// refusal keeps an expired or foreign token an ordinary refusal and wraps
+// everything else as an upstream failure worth logging.
+func refusal(err error) error {
+	if errors.Is(err, errRejected) {
+		return ErrForbidden
+	}
+	return fmt.Errorf("%w: %v", ErrForbidden, err)
 }
 
 func (c Checker) call(ctx context.Context, method, path, authorization string, body []byte, expectedStatus int, out any) error {
@@ -74,6 +85,9 @@ func (c Checker) call(ctx context.Context, method, path, authorization string, b
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized {
+		return errRejected
+	}
 	if resp.StatusCode != expectedStatus {
 		return fmt.Errorf("%s %s: status %d", method, path, resp.StatusCode)
 	}

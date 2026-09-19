@@ -22,7 +22,7 @@
         <context-action-menu :menu-sections="menuSections" :action-options="{}" />
       </oc-drop>
     </div>
-    <!-- aria-disabled rather than disabled, so a keyboard user keeps the focus while the upload runs -->
+    <!-- aria-disabled rather than disabled, so a keyboard user keeps the focus while a change runs -->
     <button
       type="button"
       class="ext:mt-2 ext:flex ext:aspect-video ext:w-[280px] ext:max-w-full ext:cursor-pointer ext:items-center ext:justify-center ext:overflow-hidden ext:rounded-xl ext:border ext:aria-disabled:cursor-default"

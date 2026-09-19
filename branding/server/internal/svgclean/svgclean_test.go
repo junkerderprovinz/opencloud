@@ -173,11 +173,8 @@ func TestDedupsAttributes(t *testing.T) {
 }
 
 func TestIgnoresContentAfterRoot(t *testing.T) {
-	out, err := Sanitize(strings.NewReader(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg><rect/>`))
-	if err != nil {
-		return // the decoder erroring on trailing content is acceptable too
-	}
-	if n := strings.Count(string(out), "<rect"); n != 1 {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg><rect/>`)
+	if n := strings.Count(out, "<rect"); n != 1 {
 		t.Errorf("want exactly one <rect kept, got %d: %s", n, out)
 	}
 }

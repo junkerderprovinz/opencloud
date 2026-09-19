@@ -102,9 +102,7 @@ func (n *node) attr(name string) (string, bool) {
 
 // Sanitize parses r and returns a rebuilt SVG that contains only allowlisted
 // elements and attributes. Comments, processing instructions and DOCTYPE
-// declarations are dropped; entity references make parsing fail. The
-// document is parsed into a tree before anything is written, so <use>
-// elements can be resolved against the elements they reference.
+// declarations are dropped; entity references make parsing fail.
 func Sanitize(r io.Reader) ([]byte, error) {
 	root, err := parseTree(r)
 	if err != nil {
@@ -169,9 +167,6 @@ func parseTree(r io.Reader) (*node, error) {
 				skip--
 				continue
 			}
-			if len(stack) == 0 {
-				continue
-			}
 			stack = stack[:len(stack)-1]
 			if len(stack) == 0 {
 				return root, nil // root closed; ignore anything after it
@@ -186,10 +181,9 @@ func parseTree(r io.Reader) (*node, error) {
 			}
 		}
 	}
-	if !sawRoot {
-		return nil, ErrNotSVG
-	}
-	return root, nil
+	// The strict decoder fails on EOF inside an open element, so only a
+	// document without a root gets here.
+	return nil, ErrNotSVG
 }
 
 func cleanAttrs(element string, raw []xml.Attr) []attr {

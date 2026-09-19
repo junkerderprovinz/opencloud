@@ -1,9 +1,13 @@
 package theme
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -168,6 +172,65 @@ func TestInvalidStateIsMovedAside(t *testing.T) {
 	if b, _ := os.ReadFile(moved[0]); string(b) != "{not json" {
 		t.Errorf("moved file = %q, want the original content", b)
 	}
+}
+
+func TestMoveAsideKeepsEveryBackup(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	for _, content := range []string{"{one", "{two"} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := moveAside(path, errors.New("invalid")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	moved, err := filepath.Glob(path + ".invalid-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var contents []string
+	for _, m := range moved {
+		b, _ := os.ReadFile(m)
+		contents = append(contents, string(b))
+	}
+	if len(contents) != 2 || !slices.Contains(contents, "{one") || !slices.Contains(contents, "{two") {
+		t.Errorf("backups %v hold %q, want both files", moved, contents)
+	}
+}
+
+func TestSaveSucceedsWhenUnusedImageStays(t *testing.T) {
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		t.Skip("needs directory permissions that bind the test user")
+	}
+	s := newStore(t)
+	if _, err := s.SetImage(imagefmt.Logo, "png", []byte("one")); err != nil {
+		t.Fatal(err)
+	}
+	// Without read permission the folder can take the new image but cannot
+	// be listed, so only the cleanup after the commit fails.
+	if err := os.Chmod(s.AssetsDir, 0o300); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(s.AssetsDir, 0o755) })
+	logs := captureLog(t)
+	st, err := s.SetImage(imagefmt.Logo, "png", []byte("two"))
+	if err != nil {
+		t.Fatalf("saved change reported as failed: %v", err)
+	}
+	if saved, _ := s.Load(); saved.Logo != st.Logo {
+		t.Errorf("state logo = %q, want %q", saved.Logo, st.Logo)
+	}
+	if !strings.Contains(logs.String(), s.AssetsDir) {
+		t.Errorf("cleanup failure not logged: %q", logs)
+	}
+}
+
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	return &buf
 }
 
 func TestMovedAsideStateCanBePutBack(t *testing.T) {

@@ -142,7 +142,11 @@ func (s *Store) update(change func(*State) error) (State, error) {
 	if err := s.commit(st); err != nil {
 		return State{}, err
 	}
-	return st, s.removeUnused(st)
+	// The change is saved and live; an image left behind goes with the next one.
+	if err := s.removeUnused(st); err != nil {
+		log.Printf("theme: removing unused images: %v", err)
+	}
+	return st, nil
 }
 
 func (s *Store) commit(st State) error {
@@ -203,12 +207,24 @@ func (s *Store) removeUnused(st State) error {
 // moveAside keeps an unreadable file for inspection and frees its name, so
 // the store starts over instead of failing on every call.
 func moveAside(path string, reason error) error {
-	dst := fmt.Sprintf("%s.invalid-%d", path, time.Now().Unix())
+	dst := freeName(fmt.Sprintf("%s.invalid-%d", path, time.Now().Unix()))
 	if err := os.Rename(path, dst); err != nil {
 		return fmt.Errorf("theme: %s: %v, and moving it aside failed: %w", path, reason, err)
 	}
 	log.Printf("theme: %s: %v, moved to %s", path, reason, dst)
 	return nil
+}
+
+// freeName returns path, or path with -2, -3 and so on appended while that
+// name is taken, so a second backup within the same second keeps the first.
+func freeName(path string) string {
+	name := path
+	for i := 2; ; i++ {
+		if _, err := os.Lstat(name); err != nil {
+			return name
+		}
+		name = fmt.Sprintf("%s-%d", path, i)
+	}
 }
 
 func field(st *State, k imagefmt.Kind) *string {

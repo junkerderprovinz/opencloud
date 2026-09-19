@@ -39,7 +39,7 @@
         @reset="reset(image)"
       >
         <p
-          v-if="image.kind === 'background' && backgroundNeedsRestart"
+          v-if="image.kind === 'background' && backgroundNeedsRestart(state)"
           class="ext:text-sm"
           v-text="$gettext('Restart the container once to apply the login background change.')"
         />
@@ -49,10 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useGettext } from 'vue3-gettext'
 import { AppLoadingSpinner, NoContentMessage, useClientService, useMessages } from '@opencloud-eu/web-pkg'
-import { brandingApi, failureOf, limits, MB, type Failure, type ImageKind } from './api'
+import { brandingApi, failureOf, type Failure, type ImageKind } from './api'
+import { backgroundNeedsRestart, failureText } from './feedback'
 import ImageSection from './ImageSection.vue'
 import { reloadTheme } from './reloadTheme'
 import { useBranding } from './useBranding'
@@ -72,28 +73,13 @@ const images: ImageSlot[] = [
   { kind: 'background', field: 'background', label: $gettext('Login background') }
 ]
 
-// The IDP reads its background URL only at startup, so the first background
-// and its removal both need one restart.
-const backgroundNeedsRestart = computed(() => !!state.value.background !== state.value.loginBackgroundActive)
-
-function reason(e: Error, kind?: ImageKind) {
-  switch (failureOf(e)) {
-    case 'forbidden':
-      return $gettext('Only admins can change the branding.')
-    case 'too-large':
-      return $gettext('The file is larger than %{size} MB.', { size: String(limits[kind] / MB) })
-    case 'unsupported-type':
-      return $gettext('Use a PNG, JPEG, GIF, WebP or SVG image.')
-  }
-}
-
 async function report(change: Promise<boolean>, done: string, failed: string, kind?: ImageKind) {
   try {
     const reloaded = await change
     showMessage({ title: done, ...(!reloaded && { desc: $gettext('Reload the page to see the change.') }) })
   } catch (e) {
     console.error(e)
-    showErrorMessage({ title: failed, desc: reason(e, kind), errors: [e] })
+    showErrorMessage({ title: failed, desc: failureText($gettext, failureOf(e), kind), errors: [e] })
   }
 }
 

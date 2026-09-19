@@ -40,6 +40,12 @@ function mountSection(props: {
 const actions = (wrapper: VueWrapper) =>
   wrapper.findComponent({ name: 'ContextActionMenu' }).props('menuSections')[0].items as Action[]
 const actionNames = (wrapper: VueWrapper) => actions(wrapper).map((action) => action.name)
+const previewBox = (wrapper: VueWrapper) => wrapper.find('button[aria-label^="Upload image: "]')
+const description = (wrapper: VueWrapper) =>
+  previewBox(wrapper)
+    .attributes('aria-describedby')
+    .split(' ')
+    .map((id) => wrapper.find(`#${id}`).text())
 
 const logo = '/themes/_branding/logo-1a2b3c4d5e6f.png'
 const logoDark = '/themes/_branding/logo-dark-6f5e4d3c2b1a.svg'
@@ -96,9 +102,22 @@ describe('ImageSection', () => {
     const none = mountSection({ preview: { url: '', source: 'default' } })
 
     expect(stock.find('img').attributes('src')).toBe('themes/opencloud/assets/logo.svg')
-    expect(stock.text()).toContain('OpenCloud default')
-    expect(none.find('img').exists()).toBe(false)
-    expect(none.text()).toContain('OpenCloud default')
+    expect(description(stock)).toEqual(['OpenCloud default', 'PNG, JPEG, GIF, WebP or SVG, up to 5 MB'])
+    expect(previewBox(none).find('img').exists()).toBe(false)
+    expect(previewBox(none).text()).toBe('')
+    expect(description(none)).toEqual(['OpenCloud default', 'PNG, JPEG, GIF, WebP or SVG, up to 5 MB'])
+  })
+
+  it('describes the preview by its caption and format hint', () => {
+    const own = mountSection({ preview: { url: logo, source: 'custom' } })
+    const fallback = mountSection({
+      kind: 'logo-dark',
+      label: 'Logo for dark mode',
+      preview: previewOf('logo-dark', { ...nothingSaved, logo }, [])
+    })
+
+    expect(description(own)).toEqual(['PNG, JPEG, GIF, WebP or SVG, up to 5 MB'])
+    expect(description(fallback)).toEqual(['Uses the logo', 'PNG, JPEG, GIF, WebP or SVG, up to 5 MB'])
   })
 
   it('previews a logo on the top bar colours it gets', () => {

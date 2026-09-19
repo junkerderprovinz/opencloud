@@ -29,15 +29,16 @@
       :class="previewClass"
       :style="preview.chrome && { backgroundColor: preview.chrome.background, color: preview.chrome.color }"
       :aria-label="uploadLabel"
+      :aria-describedby="caption ? `${captionId} ${hintId}` : hintId"
       :aria-disabled="busy || undefined"
       @click="choose"
     >
       <oc-spinner v-if="changing" size="large" :aria-label="$gettext('Saving...')" />
       <img v-else-if="preview.url" :src="preview.url" :alt="label" :class="imageClass" />
-      <span v-else v-text="$gettext('OpenCloud default')" />
+      <oc-icon v-else name="image-add" size="large" />
     </button>
-    <p v-if="caption" class="ext:text-sm ext:text-role-on-surface-variant" v-text="caption" />
-    <p class="ext:text-sm ext:text-role-on-surface-variant" v-text="hint" />
+    <p v-if="caption" :id="captionId" class="ext:text-sm ext:text-role-on-surface-variant" v-text="caption" />
+    <p :id="hintId" class="ext:text-sm ext:text-role-on-surface-variant" v-text="hint" />
     <input
       ref="input"
       type="file"
@@ -68,6 +69,8 @@ const emit = defineEmits<{ upload: [file: File]; reset: [] }>()
 const { $gettext } = useGettext()
 const input = ref<HTMLInputElement>()
 const menuId = `branding-${kind}-menu`
+const captionId = `branding-${kind}-caption`
+const hintId = `branding-${kind}-hint`
 
 const hint = $gettext('PNG, JPEG, GIF, WebP or SVG, up to %{size} MB', { size: String(limits[kind] / MB) })
 const uploadLabel = $gettext('Upload image: %{image}', { image: label })
@@ -87,7 +90,7 @@ const caption = computed(() => {
   if (preview.source === 'logo') {
     return $gettext('Uses the logo')
   }
-  return preview.source === 'default' && preview.url ? $gettext('OpenCloud default') : ''
+  return preview.source === 'default' ? $gettext('OpenCloud default') : ''
 })
 
 // The drop removes the chosen item, so the focus goes back to the menu button. After a

@@ -26,13 +26,11 @@ func main() {
 }
 
 // run serves the API until it fails. With -regenerate it only rewrites the
-// theme overlay, which keeps the saved branding current while the app is off.
+// theme overlay and exits, which the entrypoint does before the server starts.
 func run(args []string) error {
-	flags := flag.NewFlagSet("brandingd", flag.ContinueOnError)
+	flags := flag.NewFlagSet("brandingd", flag.ExitOnError)
 	regenerate := flags.Bool("regenerate", false, "rewrite the theme overlay from the saved state and exit")
-	if err := flags.Parse(args); err != nil {
-		return err
-	}
+	flags.Parse(args)
 	listen := env("BRANDING_LISTEN", "127.0.0.1:9299")
 	dataDir := env("BRANDING_DATA_DIR", "/var/lib/opencloud")
 	basePath := env("BRANDING_BASE_THEME", "/usr/local/share/opencloud-branding/base-theme.json")

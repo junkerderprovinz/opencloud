@@ -186,34 +186,54 @@ BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
 BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
 _branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
 
-# Only a file that starts with the marker is ours to rewrite or remove.
+# Only a regular file whose first line is the marker is ours to rewrite or
+# remove, also after an editor on Windows saved it with CRLF or a BOM. A
+# symlink always counts as the user's own, so nothing is written through it.
 _own_proxy="false"
-if [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}")" != "${BRANDING_PROXY_MARKER}" ]; then
+if [ -L "${BRANDING_PROXY}" ]; then
+    _own_proxy="true"
+elif [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}" | tr -d '\r\357\273\277')" != "${BRANDING_PROXY_MARKER}" ]; then
     _own_proxy="true"
 fi
 
-# The route counts only when endpoint and backend sit in the same list item.
+# OpenCloud drops the whole file when a top-level key appears twice, and it
+# only routes through the policy named default. The route counts when
+# endpoint, backend and unprotected sit in the same list item of that policy.
 if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
-    if awk '
-        /^[[:space:]]*-[[:space:]]/ { if (ep && be) found = 1; ep = 0; be = 0 }
+    if [ -f "${BRANDING_PROXY}" ] && [ "$(awk '/^additional_policies:/ { n++ } END { print n + 0 }' "${BRANDING_PROXY}")" -gt 1 ]; then
+        echo "[entrypoint] WARNING: your own ${BRANDING_PROXY} has more than one additional_policies key, so OpenCloud ignores the whole file and the branding app stays off; merge them into one"
+        _branding="false"
+    elif [ -f "${BRANDING_PROXY}" ] && awk '
+        function item_end() { if (ep && be && un && policy == "default") found = 1; ep = 0; be = 0; un = 0 }
+        /^[[:space:]]*-[[:space:]]/ { item_end() }
+        /^[[:space:]]*(-[[:space:]]+)?name:/ {
+            policy = $0
+            sub(/^[[:space:]]*(-[[:space:]]+)?name:[[:space:]]*/, "", policy)
+            sub(/[[:space:]]*(#.*)?$/, "", policy)
+            gsub(/["\047]/, "", policy)
+        }
         /^[[:space:]]*(-[[:space:]]+)?endpoint:[[:space:]]*["\047]?\/brandingsvc\/["\047]?[[:space:]]*(#.*)?$/ { ep = 1 }
         /^[[:space:]]*(-[[:space:]]+)?backend:[[:space:]]*["\047]?http:\/\/127\.0\.0\.1:9299\/?["\047]?[[:space:]]*(#.*)?$/ { be = 1 }
-        END { exit !(found || (ep && be)) }
+        /^[[:space:]]*(-[[:space:]]+)?unprotected:[[:space:]]*(true|True|TRUE)[[:space:]]*(#.*)?$/ { un = 1 }
+        END { item_end(); exit !found }
     ' "${BRANDING_PROXY}"; then
         echo "[entrypoint] branding app uses the /brandingsvc/ route from your ${BRANDING_PROXY}"
     else
-        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${BRANDING_PROXY} has no /brandingsvc/ route - branding app not enabled (add the route from the README to it)"
+        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${BRANDING_PROXY} has no /brandingsvc/ route in the default policy with unprotected: true, so the branding app stays off; add the route from the README"
         _branding="false"
     fi
 fi
 
+# The target user does the writing, so a symlink planted in a volume cannot
+# make root write outside it.
+# shellcheck disable=SC2086
 if [ "${_branding}" = "true" ]; then
     # Removing the directory itself drops a symlink instead of following it.
-    rm -rf "${BRANDING_APPS_DIR}"
-    mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding"
-    cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"
+    ${DROP} rm -rf "${BRANDING_APPS_DIR}"
+    ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding"
+    ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"
     if [ "${_own_proxy}" = "false" ]; then
-        cat > "${BRANDING_PROXY}" <<EOF
+        ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
 ${BRANDING_PROXY_MARKER}
 additional_policies:
   - name: default
@@ -223,13 +243,10 @@ additional_policies:
         unprotected: true
 EOF
     fi
-    if [ "$(id -u)" = "0" ]; then
-        chown -R "${PUID}:${PGID}" "${DATA_DIR}/web" "${DATA_DIR}/branding" "${BRANDING_PROXY}"
-    fi
 else
-    rm -rf "${BRANDING_APPS_DIR}"
+    ${DROP} rm -rf "${BRANDING_APPS_DIR}"
     if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
-        rm -f "${BRANDING_PROXY}"
+        ${DROP} rm -f "${BRANDING_PROXY}"
         echo "[entrypoint] BRANDING_APP=false: removed the managed ${BRANDING_PROXY}"
     fi
 fi

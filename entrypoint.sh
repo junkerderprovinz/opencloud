@@ -256,7 +256,7 @@ fi
 
 # The saved themes list is a copy of the base theme, which a new image can
 # change. brandingd also moves a corrupt state.json aside and drops image names
-# it does not trust, so the background below is read after it ran.
+# it does not trust or cannot find, so the background below is read after it ran.
 if [ -f "${BRANDING_STATE}" ]; then
     # shellcheck disable=SC2086
     if BRANDING_DATA_DIR="${DATA_DIR}" ${DROP} /usr/local/bin/brandingd -regenerate; then

@@ -40,6 +40,7 @@ func TestRegenerateRewritesOverlayAndReturns(t *testing.T) {
 	base := filepath.Join(dir, "base-theme.json")
 	writeFile(t, base, `{"clients":{"web":{"themes":[{"isDark":false},{"isDark":true,"logo":"x.svg"}]}}}`)
 	writeFile(t, filepath.Join(dir, "branding", "state.json"), `{"logo": "logo-0123456789ab.png"}`)
+	writeFile(t, filepath.Join(dir, "web", "assets", "themes", "_branding", "logo-0123456789ab.png"), "png")
 	t.Setenv("BRANDING_DATA_DIR", dir)
 	t.Setenv("BRANDING_BASE_THEME", base)
 

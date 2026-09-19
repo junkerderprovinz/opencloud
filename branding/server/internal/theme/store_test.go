@@ -357,3 +357,39 @@ func TestMovedAsideStateCanBePutBack(t *testing.T) {
 		}
 	}
 }
+
+func TestRegenerateDropsImagesWhoseFileIsGone(t *testing.T) {
+	s := newStore(t)
+	var st State
+	for _, k := range []imagefmt.Kind{imagefmt.Logo, imagefmt.Favicon, imagefmt.Background} {
+		saved, err := s.SetImage(k, "png", []byte(k))
+		if err != nil {
+			t.Fatal(err)
+		}
+		st = saved
+	}
+	for _, name := range []string{st.Logo, st.Favicon, st.Background} {
+		if err := os.Remove(filepath.Join(s.AssetsDir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	logs := captureLog(t)
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	if got, err := s.Load(); err != nil || got != (State{}) {
+		t.Errorf("state = %+v, err %v, want empty", got, err)
+	}
+	if !strings.Contains(logs.String(), st.Background) {
+		t.Errorf("missing background not logged: %q", logs)
+	}
+	b, _ := os.ReadFile(s.StateFile)
+	if !strings.Contains(string(b), "\n  \"background\": \"\"") {
+		t.Errorf("state file still names the background: %s", b)
+	}
+	overlay, _ := os.ReadFile(filepath.Join(s.AssetsDir, "theme.json"))
+	if strings.Contains(string(overlay), AssetPrefix) {
+		t.Errorf("overlay still refers to a missing image: %s", overlay)
+	}
+}

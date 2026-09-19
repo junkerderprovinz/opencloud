@@ -120,10 +120,20 @@ func (s *Store) load() (st State, missing bool, err error) {
 		return State{}, false, moveAside(s.StateFile, err)
 	}
 	// The names become file paths, and state.json sits on a volume that other
-	// processes can write.
+	// processes can write. A file removed by hand would leave a broken image on
+	// every page.
 	for _, k := range []imagefmt.Kind{imagefmt.Logo, imagefmt.LogoDark, imagefmt.Favicon, imagefmt.Background} {
-		if name := field(&st, k); *name != "" && !assetName.MatchString(*name) {
+		name := field(&st, k)
+		if *name == "" {
+			continue
+		}
+		if !assetName.MatchString(*name) {
 			log.Printf("theme: %s: ignoring %s %q, not an asset name", s.StateFile, k, *name)
+			*name = ""
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(s.AssetsDir, *name)); errors.Is(err, os.ErrNotExist) {
+			log.Printf("theme: %s image %s is missing from %s, using OpenCloud's own", k, *name, s.AssetsDir)
 			*name = ""
 		}
 	}

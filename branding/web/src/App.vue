@@ -46,13 +46,7 @@
         :changing="changing === image.kind"
         @upload="upload(image, $event)"
         @reset="reset(image)"
-      >
-        <p
-          v-if="image.kind === 'background' && backgroundNeedsRestart(state)"
-          class="ext:text-sm"
-          v-text="restartNote"
-        />
-      </image-section>
+      />
     </div>
   </main>
 </template>
@@ -68,7 +62,7 @@ import {
   useThemeStore
 } from '@opencloud-eu/web-pkg'
 import { brandingApi, failureOf, type Failure, type ImageKind } from './api'
-import { backgroundNeedsRestart, failureText } from './feedback'
+import { failureText } from './feedback'
 import ImageSection from './ImageSection.vue'
 import { previewOf } from './preview'
 import { reloadTheme } from './reloadTheme'
@@ -84,8 +78,6 @@ const { state, name, slogan, busy, textChanged } = branding
 const loadFailure = ref<Failure>()
 const changing = ref<ImageKind>()
 
-const restartNote = $gettext('Restart the container once to apply the login background change.')
-
 const images: ImageSlot[] = [
   { kind: 'logo', label: $gettext('Logo') },
   { kind: 'logo-dark', label: $gettext('Logo for dark mode') },
@@ -97,11 +89,7 @@ async function report(change: Promise<boolean>, done: string, failed: string, ki
   changing.value = kind
   try {
     const reloaded = await change
-    const notes = [
-      !reloaded && $gettext('Reload the page to see the change.'),
-      kind === 'background' && backgroundNeedsRestart(state.value) && restartNote
-    ].filter(Boolean)
-    showMessage({ title: done, ...(notes.length > 0 && { desc: notes.join(' ') }) })
+    showMessage({ title: done, ...(!reloaded && { desc: $gettext('Reload the page to see the change.') }) })
   } catch (e) {
     console.error(e)
     showErrorMessage({ title: failed, desc: failureText($gettext, failureOf(e), kind), errors: [e] })

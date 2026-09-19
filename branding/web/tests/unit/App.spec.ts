@@ -30,10 +30,8 @@ const saved: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: '',
-  loginBackgroundActive: false
+  background: ''
 }
-const restartNote = 'Restart the container once to apply the login background change.'
 
 const answered = (status: number) => Object.assign(new Error(`status ${status}`), { response: { status } })
 
@@ -41,8 +39,7 @@ async function mountApp() {
   const wrapper = mount(App, {
     global: {
       plugins: [createGettext({ translations: {}, silent: true })],
-      stubs: { OcTextInput: true, OcButton: true, ImageSection: true },
-      renderStubDefaultSlot: true
+      stubs: { OcTextInput: true, OcButton: true, ImageSection: true }
     }
   })
   await flushPromises()
@@ -99,13 +96,12 @@ describe('App', () => {
     expect(messages.showMessage).toHaveBeenCalledWith({ title: 'Logo saved', desc: 'Reload the page to see the change.' })
   })
 
-  it('asks for a restart until the login page shows the saved background', async () => {
+  it('confirms a login background without asking for a restart', async () => {
     const wrapper = await mountApp()
-    expect(wrapper.text()).not.toContain(restartNote)
 
     await upload(wrapper, 'background', { ...saved, background: '/themes/_branding/background-1a2b3c4d5e6f.png' })
 
-    expect(messages.showMessage).toHaveBeenCalledWith({ title: 'Login background saved', desc: restartNote })
-    expect(wrapper.text()).toContain(restartNote)
+    expect(messages.showMessage).toHaveBeenCalledWith({ title: 'Login background saved' })
+    expect(wrapper.text()).not.toContain('Restart')
   })
 })

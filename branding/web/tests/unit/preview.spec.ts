@@ -9,8 +9,7 @@ const nothingSaved: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: '',
-  loginBackgroundActive: false
+  background: ''
 }
 
 // The two themes of OpenCloud 7.2, after the runtime merged the defaults into them.

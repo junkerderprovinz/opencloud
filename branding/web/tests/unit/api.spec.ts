@@ -14,8 +14,7 @@ const state: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: '',
-  loginBackgroundActive: false
+  background: ''
 }
 
 describe('brandingApi', () => {

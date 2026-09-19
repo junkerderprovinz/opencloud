@@ -33,7 +33,6 @@
     </div>
     <p v-if="caption" class="ext:text-sm ext:text-role-on-surface-variant" v-text="caption" />
     <p class="ext:text-sm ext:text-role-on-surface-variant" v-text="hint" />
-    <slot />
     <input
       ref="input"
       type="file"

@@ -8,8 +8,7 @@ const saved: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: '',
-  loginBackgroundActive: false
+  background: ''
 }
 
 function fakeApi(): BrandingApi {

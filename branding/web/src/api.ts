@@ -9,7 +9,6 @@ export interface BrandingState {
   logoDark: string
   favicon: string
   background: string
-  loginBackgroundActive: boolean
 }
 
 export type BrandingHttp = Pick<HttpClient, 'get' | 'put' | 'request'>

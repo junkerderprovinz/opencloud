@@ -1,9 +1,5 @@
 import type { Language } from 'vue3-gettext'
-import { limits, MB, type BrandingState, type Failure, type ImageKind } from './api'
-
-// The IDP reads its background URL only at startup, so the first background
-// and its removal both need one restart.
-export const backgroundNeedsRestart = (state: BrandingState) => !!state.background !== state.loginBackgroundActive
+import { limits, MB, type Failure, type ImageKind } from './api'
 
 export function failureText($gettext: Language['$gettext'], failure: Failure, kind?: ImageKind) {
   switch (failure) {

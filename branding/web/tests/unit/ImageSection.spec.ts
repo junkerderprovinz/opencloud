@@ -49,8 +49,7 @@ const nothingSaved: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: '',
-  loginBackgroundActive: false
+  background: ''
 }
 
 enableAutoUnmount(afterEach)

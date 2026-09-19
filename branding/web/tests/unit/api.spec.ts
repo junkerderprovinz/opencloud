@@ -1,6 +1,12 @@
+import { Blob as NodeBlob } from 'node:buffer'
 import { describe, expect, it } from 'vitest'
 import { HttpClient } from '@opencloud-eu/web-pkg'
-import { brandingApi, validateUpload, type BrandingState } from '../../src/api'
+import { brandingApi, failureOf, FileTooLargeError, type BrandingState, type ImageKind } from '../../src/api'
+
+const MB = 1024 * 1024
+
+// happy-dom's Blob does not identify as one, so axios would send it as JSON.
+const file = (content: string | Uint8Array) => new NodeBlob([content]) as unknown as Blob
 
 const state: BrandingState = {
   name: '',
@@ -12,33 +18,18 @@ const state: BrandingState = {
   loginBackgroundActive: false
 }
 
-describe('validateUpload', () => {
-  it('accepts a PNG logo under 5 MB', () => {
-    expect(validateUpload('logo', { size: 1024, type: 'image/png' })).toBeNull()
-  })
-  it('rejects a favicon over 2 MB', () => {
-    expect(validateUpload('favicon', { size: 2 * 1024 * 1024 + 1, type: 'image/png' })).toBe('too-large')
-  })
-  it('allows a 25 MB background', () => {
-    expect(validateUpload('background', { size: 25 * 1024 * 1024, type: 'image/jpeg' })).toBeNull()
-  })
-  it('accepts SVG and rejects other types', () => {
-    expect(validateUpload('logo', { size: 10, type: 'image/svg+xml' })).toBeNull()
-    expect(validateUpload('logo', { size: 10, type: 'application/pdf' })).toBe('unsupported-type')
-  })
-})
-
 describe('brandingApi', () => {
   // The real HttpClient, because axios decides which arguments reach the wire.
   function recordingApi() {
-    const sent: { method?: string; url?: string; data?: unknown; branding?: unknown }[] = []
+    const sent: { method?: string; url?: string; data?: unknown; branding?: unknown; contentType?: unknown }[] = []
     const http = new HttpClient({
       adapter: async (config) => {
         sent.push({
           method: config.method,
           url: config.url,
           data: config.data,
-          branding: config.headers['X-Branding-Request']
+          branding: config.headers['X-Branding-Request'],
+          contentType: config.headers['Content-Type']
         })
         return { data: state, status: 200, statusText: 'OK', headers: {}, config }
       }
@@ -50,7 +41,7 @@ describe('brandingApi', () => {
     const { api, sent } = recordingApi()
     await api.state()
     await api.saveText('Knight Cloud', 'Files, forged')
-    await api.uploadImage('logo', new Blob(['x']))
+    await api.uploadImage('logo', file('x'))
     await api.clearImage('favicon')
 
     expect(sent.map(({ method, url, branding }) => [method, url, branding])).toEqual([
@@ -66,5 +57,57 @@ describe('brandingApi', () => {
     await api.saveText('Knight Cloud', 'Files, forged')
 
     expect(JSON.parse(sent[0].data as string)).toEqual({ name: 'Knight Cloud', slogan: 'Files, forged' })
+  })
+
+  it('uploads the file as the raw body and leaves the format to the server', async () => {
+    const { api, sent } = recordingApi()
+    const svg = file('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    await api.uploadImage('logo-dark', svg)
+
+    expect(svg.type).toBe('')
+    expect(sent).toHaveLength(1)
+    expect(sent[0]).toMatchObject({
+      url: 'brandingsvc/api/image/logo-dark',
+      data: svg,
+      contentType: 'application/octet-stream'
+    })
+  })
+
+  it.each<[ImageKind, number]>([
+    ['logo', 5],
+    ['logo-dark', 5],
+    ['favicon', 2],
+    ['background', 25]
+  ])('sends a %s of %i MB and refuses one byte more without sending it', async (kind, limit) => {
+    const { api, sent } = recordingApi()
+    await api.uploadImage(kind, file(new Uint8Array(limit * MB)))
+    await expect(api.uploadImage(kind, file(new Uint8Array(limit * MB + 1)))).rejects.toBeInstanceOf(
+      FileTooLargeError
+    )
+
+    expect(sent).toHaveLength(1)
+  })
+})
+
+describe('failureOf', () => {
+  const answered = (status: number) => Object.assign(new Error(`status ${status}`), { response: { status } })
+
+  it('reads 401 and 403 as missing admin rights', () => {
+    expect(failureOf(answered(401))).toBe('forbidden')
+    expect(failureOf(answered(403))).toBe('forbidden')
+  })
+
+  it('names a file the server refuses as too large or not an image', () => {
+    expect(failureOf(answered(413))).toBe('too-large')
+    expect(failureOf(answered(415))).toBe('unsupported-type')
+  })
+
+  it('names a file refused before the upload as too large', () => {
+    expect(failureOf(new FileTooLargeError())).toBe('too-large')
+  })
+
+  it('does not blame the admin for server errors or a lost connection', () => {
+    expect(failureOf(answered(500))).toBe('other')
+    expect(failureOf(new Error('Network Error'))).toBe('other')
   })
 })

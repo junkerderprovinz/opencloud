@@ -1,3 +1,4 @@
+import '@opencloud-eu/extension-sdk/tailwind.css'
 import { AppMenuItemExtension, defineWebApplication, useAbility } from '@opencloud-eu/web-pkg'
 import { urlJoin } from '@opencloud-eu/web-client'
 import { computed } from 'vue'

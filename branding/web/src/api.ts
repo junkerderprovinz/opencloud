@@ -14,7 +14,9 @@ export interface BrandingState {
 
 export type BrandingHttp = Pick<HttpClient, 'get' | 'put' | 'request'>
 
-const MB = 1024 * 1024
+export type BrandingApi = ReturnType<typeof brandingApi>
+
+export const MB = 1024 * 1024
 
 export const limits: Record<ImageKind, number> = {
   logo: 5 * MB,
@@ -25,18 +27,24 @@ export const limits: Record<ImageKind, number> = {
 
 export const acceptedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']
 
-export type UploadProblem = 'too-large' | 'unsupported-type'
+export class FileTooLargeError extends Error {}
 
-// Mirrors the server's limits so the admin gets an answer before the upload.
-// The server checks again and is the one that decides.
-export function validateUpload(kind: ImageKind, file: { size: number; type: string }): UploadProblem | null {
-  if (!acceptedTypes.includes(file.type)) {
-    return 'unsupported-type'
-  }
-  if (file.size > limits[kind]) {
+export type Failure = 'forbidden' | 'too-large' | 'unsupported-type' | 'other'
+
+export function failureOf(error: Error & { response?: { status: number } }): Failure {
+  if (error instanceof FileTooLargeError) {
     return 'too-large'
   }
-  return null
+  switch (error.response?.status) {
+    case 401:
+    case 403:
+      return 'forbidden'
+    case 413:
+      return 'too-large'
+    case 415:
+      return 'unsupported-type'
+  }
+  return 'other'
 }
 
 const base = 'brandingsvc/api'
@@ -45,19 +53,24 @@ const headers = { 'X-Branding-Request': '1' }
 export function brandingApi(http: BrandingHttp) {
   return {
     async state() {
-      return (await http.get<BrandingState>(`${base}/state`, { headers })).data as BrandingState
+      return (await http.get<BrandingState>(`${base}/state`, { headers })).data
     },
     async saveText(name: string, slogan: string) {
-      return (await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers })).data as BrandingState
+      return (await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers })).data
     },
+    // Oversized files are refused before sending. The format is left to the
+    // server, which reads the content; the browser only guesses from the name.
     async uploadImage(kind: ImageKind, file: Blob) {
+      if (file.size > limits[kind]) {
+        throw new FileTooLargeError(`${kind} is larger than ${limits[kind]} bytes`)
+      }
       const config = { headers: { ...headers, 'Content-Type': 'application/octet-stream' } }
-      return (await http.put<BrandingState>(`${base}/image/${kind}`, file, config)).data as BrandingState
+      return (await http.put<BrandingState>(`${base}/image/${kind}`, file, config)).data
     },
     // HttpClient.delete hands its config to axios in a slot axios ignores.
     async clearImage(kind: ImageKind) {
       const config = { method: 'DELETE', url: `${base}/image/${kind}`, headers }
-      return (await http.request<BrandingState>(config)).data as BrandingState
+      return (await http.request<BrandingState>(config)).data
     }
   }
 }

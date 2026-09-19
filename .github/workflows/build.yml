@@ -40,10 +40,11 @@ on:
   workflow_dispatch:
 
 # Two quick pushes to a branch race for its <branch> tag, so the older run is
-# cancelled; main and release tags always run to the end.
+# cancelled. Runs on main and release tags each get a group of their own, so
+# every commit there publishes its sha tags.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref_type == 'branch' && github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ (github.ref_type == 'branch' && github.ref != 'refs/heads/main') && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 env:
   IMAGE_NAME: opencloud

@@ -7,6 +7,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   hadolint:
     name: Hadolint (Dockerfile)
@@ -53,3 +56,48 @@ jobs:
             echo "Checking $f"
             xmllint --noout "$f"
           done
+
+  go:
+    name: Go (brandingd)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: branding/server
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          # The Dockerfile builds brandingd with golang:1.27-alpine.
+          go-version: '1.27'
+          cache-dependency-path: branding/server/go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  web:
+    name: Web extension (branding)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: branding/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: branding/web/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: branding/web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check:types
+      - run: pnpm test:unit --run
+      - run: pnpm build
+      - name: No web-client/ox import (missing on OpenCloud 7.2)
+        run: |
+          for d in src tests; do [ -d "$d" ] || { echo "branding/web/$d not found"; exit 1; }; done
+          if grep -rqE "@opencloud-eu/web-client/ox" src tests; then echo "branding/web imports @opencloud-eu/web-client/ox, which OpenCloud 7.2 does not provide"; exit 1; fi

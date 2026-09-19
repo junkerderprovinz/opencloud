@@ -53,14 +53,15 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 4. [Production vs Rolling](#4-production-vs-rolling)
 5. [How the Wrapper Works](#5-how-the-wrapper-works)
 6. [Reverse Proxy](#6-reverse-proxy)
-7. [Building Locally](#7-building-locally)
-8. [Updating](#8-updating)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Architecture](#10-architecture)
-11. [Contributing / License](#11-contributing--license)
-12. [License](#12-license)
-13. [How AI is used here](#13-how-ai-is-used-here)
-14. [Support this project](#14-support-this-project)
+7. [Branding](#7-branding)
+8. [Building Locally](#8-building-locally)
+9. [Updating](#9-updating)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Architecture](#11-architecture)
+12. [Contributing / License](#12-contributing--license)
+13. [License](#13-license)
+14. [How AI is used here](#14-how-ai-is-used-here)
+15. [Support this project](#15-support-this-project)
 <br>
 
 ## 1. Overview
@@ -70,15 +71,16 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 - it runs its binary as a **fixed UID with no `PUID`/`PGID` support**, so on a fresh Unraid box the root-owned bind mounts make the very first boot fail with *"permission denied"* writing `/etc/opencloud/opencloud.yaml` and `/var/lib/opencloud/nats`;
 - it requires a **one-time `opencloud init`** to be run by hand before `opencloud server` will start.
 
-This image is a **thin wrapper** around the official one that fixes exactly those two things and nothing else:
+This image is a **thin wrapper** around the official one that fixes those two things and adds a few extras:
 
 - **Auto-init** — runs `opencloud init` once on first boot (idempotent on later boots).
 - **Permission heal** — creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
 - **PUID / PGID** — drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
 - **Two channels** — `:rolling` (newest builds, the template default) and `:latest` (OpenCloud's fully QA'd production line), from the same wrapper.
 - **Multi-arch** — amd64 and arm64.
+- **Branding app (optional, off by default)**: set the name, logos, favicon and login background from the web UI, see [§7](#7-branding).
 
-The wrapper does **not** fork, patch or repackage OpenCloud itself — it layers a tiny entrypoint on top of the unmodified upstream image, so you always run real, current OpenCloud.
+The wrapper does **not** fork, patch or repackage OpenCloud itself. It layers a tiny entrypoint and the optional branding app on top of the unmodified upstream image, so you always run real, current OpenCloud.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/files.png" alt="OpenCloud web UI — the file browser" width="92%">
@@ -156,7 +158,8 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `OC_LOG_LEVEL` | `info` | Log verbosity — `info`, `warn`, `error`, `debug`. |
 | `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
 | `PROXY_TLS` | `true` | OpenCloud terminates TLS itself on 9200. Set `false` behind a TLS-terminating proxy (see [§6](#6-reverse-proxy)). |
-| `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§9](#9-troubleshooting). |
+| `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§10](#10-troubleshooting). |
+| `BRANDING_APP` | `false` | Add a **Branding** app where admins set the instance name, slogan, logos, favicon and login background. See [§7](#7-branding). |
 | `PUID` | `99` | User ID OpenCloud runs as — Unraid's *nobody*. |
 | `PGID` | `100` | Group ID — Unraid's *users*. |
 
@@ -228,7 +231,7 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 7.5.x), published about every three weeks. |
+| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 8.x), published about every three weeks. |
 | `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:production` is kept as an alias, same image. |
 
 **Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)). Slow storage is precisely what produces those timeouts. Since production is cut roughly twice a year, the stable line will not carry the fix for months.
@@ -242,8 +245,9 @@ Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and 
 The entrypoint runs as root only long enough to prepare the volumes, then drops to your user:
 
 1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel — so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
-2. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). Idempotent — it harmlessly errors once the config exists.
-3. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image — no package manager needed in the base).
+2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
+3. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
+4. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
 <br>
 
@@ -260,7 +264,53 @@ By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificat
 
 <br>
 
-## 7. Building Locally
+## 7. Branding
+
+Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template) to `true` and restart the container. Accounts with the Admin role then find **Branding** in the app menu. Other accounts do not get the entry, and the service behind it refuses their changes. In the app an admin can set:
+
+- the instance name and slogan
+- a logo, plus an optional one for dark mode (without it, dark mode uses the logo)
+- the favicon
+- the background of the login page
+
+Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities. One that would freeze the browser, such as masks nested in masks or references that loop back on themselves, is refused.
+
+The login page learns only at container start whether there is a custom background. So adding the first background, or removing it again, needs one container restart, and the app shows a note when that is due. Everything else shows up as soon as you save, including a swap from one background to another.
+
+Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. To go back to the OpenCloud defaults, reset the fields in the app first.
+
+Before you go back to an image without the app, set `BRANDING_APP=false` and start the container once so it removes the app and the managed `proxy.yaml`. An older image leaves both behind: **Branding** stays in the app menu, and its page cannot load. Your name, slogan, logos and favicon carry over, but the login background does not. If you already switched, delete `/var/lib/opencloud/web/assets/apps/branding` by hand, and `/etc/opencloud/proxy.yaml` too if it starts with `# managed by the opencloud Unraid wrapper`.
+
+The app owns the name, slogan, logo, favicon and the whole `clients.web.themes` list in `/var/lib/opencloud/web/assets/themes/_branding/theme.json`. Other keys in that file, such as `common.urls`, stay as they are. From the first start with the app on, the wrapper rewrites the app's keys from its settings at every start, even with `BRANDING_APP=false`. Hand edits to those keys are replaced, and so is anything OpenCloud's own `/branding/logo` endpoint writes there. A hand-made themes list with custom colours does not survive either. On that first start, a `theme.json` that already sets any of these keys is copied to `/var/lib/opencloud/branding/theme.json.before-branding-<time>`, and the app takes over its name and slogan.
+
+The app talks to its service through the proxy route `/brandingsvc/`. While the app is on, the wrapper writes that route to `/etc/opencloud/proxy.yaml` at every start, and it deletes the file again when you set `BRANDING_APP=false`. To add routes of your own to that file, delete its first line (the marker comment). The file is then yours, and the wrapper leaves it alone.
+
+With your own `proxy.yaml`, the app turns on only if the file carries the route. Add it as one more item under `routes:` of the `- name: default` entry in your `additional_policies`, indented like the items already there:
+
+```yaml
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+```
+
+If the file has no `additional_policies` key yet, add the whole block below instead. Do not add a second `additional_policies` key: OpenCloud then ignores the whole file, your own routes included.
+
+```yaml
+additional_policies:
+  - name: default
+    routes:
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+```
+
+The proxy only uses the route from the `default` policy; anywhere else the app could not load. The route also needs `unprotected: true`, or the login page could not load the background. When either is missing, the app stays off and the log says why. `unprotected` only skips the proxy's sign-in check, and the service still asks OpenCloud about every change.
+
+The service finds OpenCloud's port through `PROXY_HTTP_ADDR`. To move OpenCloud to another port, set it there, not with `http.addr` in a `proxy.yaml`.
+
+<br>
+
+## 8. Building Locally
 
 ```bash
 git clone https://github.com/junkerderprovinz/opencloud.git
@@ -276,11 +326,11 @@ docker build --build-arg BASE="$(grep -oE 'ARG BASE_ROLLING=[^[:space:]]+' Docke
 docker buildx build --platform linux/amd64,linux/arm64 -t opencloud:dev --load .
 ```
 
-`just` recipes mirror the CI flows — `just build`, `just build-rolling`, `just smoke`, `just lint`.
+`just build` and `just build-rolling` build the two channels like CI does, and `just lint` runs the checks of the Lint workflow on the Dockerfile, the scripts, brandingd (Go tests without `-race`) and the web extension. `just smoke` runs only the base boot gate, not the branding smoke from CI.
 
 <br>
 
-## 8. Updating
+## 9. Updating
 
 ```bash
 docker pull junkerderprovinz/opencloud:latest
@@ -292,7 +342,7 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 <br>
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Crash loop with `search: cannot open index, metadata missing`
 
@@ -348,35 +398,47 @@ The wrapper heals ownership on start, but a data set created earlier as a differ
 `OC_URL` must exactly match the URL in your browser (scheme + host + port). Set `OC_URL` to your external https URL and `PROXY_TLS=false` (see [§6](#6-reverse-proxy)).
 </details>
 
+<details>
+<summary><b>The saved branding is gone</b></summary>
+
+If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container moves it aside as `state.json.invalid-<time>`, names it in the log and falls back to the OpenCloud defaults. Your images stay. Fix the file, rename it back to `state.json` and restart. Do that before you save anything in the app, because a save deletes every image the new settings do not use.
+</details>
+
 <br>
 
-## 10. Architecture
+## 11. Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  opencloudeu/opencloud[:latest] | opencloud-rolling           │
-│  (Alpine base + the OpenCloud binary, unmodified)             │
+│  opencloudeu/opencloud[:latest] | opencloud-rolling          │
+│  (Alpine base + the OpenCloud binary, unmodified)            │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  entrypoint.sh  (runs as root)                          │  │
-│  │   ↓ mkdir + chown /etc/opencloud, /var/lib/opencloud    │  │
-│  │   ↓ one-time data heal (sentinel-guarded)               │  │
-│  │   ↓ gosu PUID:PGID  opencloud init  (|| true)           │  │
-│  │   ↓ print "OPENCLOUD IS READY" banner                   │  │
-│  │   ↓ exec gosu PUID:PGID  opencloud server               │  │
+│  │  entrypoint.sh  (runs as root)                         │  │
+│  │   ↓ mkdir + chown /etc/opencloud, /var/lib/opencloud   │  │
+│  │   ↓ one-time data heal (sentinel-guarded)              │  │
+│  │   ↓ BRANDING_APP: extension + proxy route              │  │
+│  │   ↓ brandingd -regenerate  (if a branding is saved)    │  │
+│  │   ↓ BRANDING_APP: brandingd on 127.0.0.1:9299 &        │  │
+│  │   ↓ gosu PUID:PGID  opencloud init  (|| true)          │  │
+│  │   ↓ print "OPENCLOUD IS READY" banner                  │  │
+│  │   ↓ exec gosu PUID:PGID  opencloud server              │  │
 │  └────────────────────────────────────────────────────────┘  │
-│      static gosu  ← COPY --from=tianon/gosu (multi-stage)     │
+│      multi-stage:  static gosu    ← tianon/gosu              │
+│                    brandingd      ← Go build stage           │
+│                    web extension  ← Node build stage         │
+│                    base theme     ← download from GitHub     │
 └──────────────────────────────────────────────────────────────┘
 ```
 
 <br>
 
-## 11. Contributing / License
+## 12. Contributing / License
 
 Pull requests welcome. Issues: <https://github.com/junkerderprovinz/opencloud/issues>.
 
 **Licensing — dual:**
 
-- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, `branding/` with brandingd and the web extension, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 - **OpenCloud itself** and the bundled `gosu` binary are **Apache-2.0**; the Alpine base and its packages keep their own licenses. When you run, redistribute or rebuild the resulting image you must comply with **all** of those, not only this wrapper's AGPL-3.0 license. See [`NOTICE`](NOTICE).
 
 The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodified to identify the upstream project. This is an independent, community-maintained packaging and is **not affiliated with or endorsed by OpenCloud GmbH**.
@@ -388,7 +450,7 @@ The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodif
 
 <br>
 
-## 12. License
+## 13. License
 
 **Copyright (C) 2026 Junker der Provinz.**
 
@@ -398,7 +460,7 @@ This repository packages OpenCloud as a container for Unraid. The packaging in t
 
 <br>
 
-## 13. How AI is used here
+## 14. How AI is used here
 
 One knight builds this, and AI is one of the tools I work with, the same way I work with an editor or a compiler. It helps me write code and documentation and it checks my work, and that saves me a good many evenings. It does not make the decisions, though. I read and understand everything before it ships, and if something here breaks, that is on me and not on the tool.
 
@@ -406,7 +468,7 @@ You do not have to take my word for it. The code is open and every release note 
 
 <br>
 
-## 14. Support this project
+## 15. Support this project
 
 Questions? Check the [support thread](https://forums.unraid.net/topic/200022-support-junkerderprovinz-opencloud/). Bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
 

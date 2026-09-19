@@ -1,7 +1,8 @@
 # Push the README to the Docker Hub repo's Overview, on demand and nothing else.
 #
-# build.yml already does this, but only after a full multi-arch build. A run that
-# builds nothing tells a broken credential apart from a wrong secret in this repo.
+# build.yml does this after every build of main, but only after a full multi-arch
+# build. A run that builds nothing tells a broken credential apart from a wrong
+# secret in this repo.
 #
 # Manual only. It never builds, never pushes an image, and touches nothing but
 # the description text on Docker Hub.
@@ -29,5 +30,5 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ vars.DOCKERHUB_USERNAME }}/opencloud
-          short-description: "One-click OpenCloud for Unraid - auto-init, permission heal, PUID/PGID (production + rolling channels)."
+          short-description: "One-click OpenCloud for Unraid: auto-init, permission heal, PUID/PGID, production and rolling tags."
           enable-url-completion: true

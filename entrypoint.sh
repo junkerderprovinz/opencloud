@@ -294,7 +294,7 @@ if [ "${_branding}" = "true" ]; then
     if [ -z "${IDP_ASSET_PATH:-}" ]; then
         export IDP_ASSET_PATH="${BRANDING_SHARE}/idp"
     else
-        echo "[entrypoint] IDP_ASSET_PATH is set, so the login page keeps OpenCloud's texts and shows a new login background only after a restart"
+        echo "[entrypoint] IDP_ASSET_PATH is set, so the login page keeps OpenCloud's title, footer and favicon, and adding or removing the login background needs a restart"
         if [ -n "${_bg_file}" ]; then
             export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
         fi

@@ -222,15 +222,15 @@ if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
 fi
 
 # The target user does the writing, so a symlink planted in a volume cannot
-# make root write outside it.
+# make root write outside it. OpenCloud starts even when that fails.
 # shellcheck disable=SC2086
 if [ "${_branding}" = "true" ]; then
     # Removing the directory itself drops a symlink instead of following it.
-    ${DROP} rm -rf "${BRANDING_APPS_DIR}"
-    ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding"
-    ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"
-    if [ "${_own_proxy}" = "false" ]; then
-        ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
+    if ${DROP} rm -rf "${BRANDING_APPS_DIR}" \
+        && ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding" \
+        && ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"; then
+        if [ "${_own_proxy}" = "false" ]; then
+            ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
 ${BRANDING_PROXY_MARKER}
 additional_policies:
   - name: default
@@ -239,12 +239,18 @@ additional_policies:
         backend: http://127.0.0.1:9299
         unprotected: true
 EOF
+        fi
+    else
+        echo "[entrypoint] WARNING: could not install the branding app into ${BRANDING_APPS_DIR}, so it stays off"
+        _branding="false"
     fi
-else
-    ${DROP} rm -rf "${BRANDING_APPS_DIR}"
+fi
+# shellcheck disable=SC2086
+if [ "${_branding}" != "true" ]; then
+    ${DROP} rm -rf "${BRANDING_APPS_DIR}" || echo "[entrypoint] WARNING: could not remove ${BRANDING_APPS_DIR}"
     if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
         ${DROP} rm -f "${BRANDING_PROXY}"
-        echo "[entrypoint] BRANDING_APP=false: removed the managed ${BRANDING_PROXY}"
+        echo "[entrypoint] branding app off: removed the managed ${BRANDING_PROXY}"
     fi
 fi
 

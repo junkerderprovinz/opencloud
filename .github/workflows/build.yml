@@ -244,6 +244,21 @@ jobs:
           script=$(curl -sk --max-time 20 -o /dev/null -w '%{http_code} %{content_type}' "$base/brandingsvc/login.js") || true
           case "$script" in "200 text/javascript"*) ;; *) echo "login.js answered $script"; exit 1 ;; esac
 
+          # Only index.html lies under IDP_ASSET_PATH, so its bundles have to come
+          # through the IDP's fallback to its embedded files. main.css holds every
+          # class login.js looks for, while the footer markup sits in a lazy chunk.
+          echo "== sign-in bundles and the classes login.js uses =="
+          main_js=$(grep -o 'static/js/main\.[0-9a-f]*\.js' identifier.html | head -n 1) || true
+          main_css=$(grep -o 'static/css/main\.[0-9a-f]*\.css' identifier.html | head -n 1) || true
+          [ -n "$main_js" ] || { echo "login page names no main.js"; cat identifier.html; exit 1; }
+          [ -n "$main_css" ] || { echo "login page names no main.css"; cat identifier.html; exit 1; }
+          bundle=$(curl -sk --max-time 20 -o /dev/null -w '%{http_code} %{content_type}' "$base/signin/v1/$main_js") || true
+          case "$bundle" in "200 text/javascript"*) ;; *) echo "$main_js answered $bundle"; exit 1 ;; esac
+          fetch "$base/signin/v1/$main_css" > signin.css
+          for class in oc-footer-message oc-login-bg-image oc-login-bg-icon; do
+            grep -qF ".$class" signin.css || { echo "sign-in styles lack .$class, which login.js relies on"; exit 1; }
+          done
+
           echo "== refusals =="
           printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' | base64 -d > logo.png
           expect 401 -H 'X-Branding-Request: 1' -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/logo"

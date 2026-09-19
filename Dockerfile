@@ -53,13 +53,13 @@ RUN opencloud version --skip-services > /tmp/opencloud-version \
  && test -s /tmp/base-theme.json \
  && grep -q '"themes"' /tmp/base-theme.json
 
-# brandingd is static, so it cross-compiles on the build host.
+# brandingd and logintemplate are static, so they cross-compile on the build host.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS brandingd
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
 COPY branding/server/ ./
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/brandingd ./cmd/brandingd
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/brandingd ./cmd/logintemplate
 
 # The web extension is plain JS and CSS, so one build serves every platform.
 FROM --platform=$BUILDPLATFORM node:24-alpine AS brandingweb
@@ -94,6 +94,11 @@ COPY .github/assets/banner-raw.txt /usr/local/share/banner-raw.txt
 COPY --from=brandingd /out/brandingd /usr/local/bin/brandingd
 COPY --from=brandingweb /src/dist/ /usr/local/share/opencloud-branding/app/
 COPY --from=basetheme /tmp/base-theme.json /usr/local/share/opencloud-branding/base-theme.json
+
+# The sign-in page names the hashed bundles of the binary it ships in, so the
+# copy that loads the branding script comes from that binary.
+RUN --mount=type=bind,from=brandingd,source=/out,target=/tmp/branding-build \
+    /tmp/branding-build/logintemplate /usr/bin/opencloud /usr/local/share/opencloud-branding/idp/identifier/index.html
 
 # A stray CR in the banner art would show up in the log. BusyBox in the base
 # provides tr and chmod, so no package manager is needed.

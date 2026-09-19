@@ -62,10 +62,7 @@ func (s *Store) Load() (State, error) {
 func (s *Store) Regenerate() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st, missing, err := s.load()
-	if err == nil && missing {
-		err = s.adoptOverlay(&st)
-	}
+	st, err := s.current()
 	if err != nil {
 		return err
 	}
@@ -133,13 +130,20 @@ func (s *Store) load() (st State, missing bool, err error) {
 	return st, false, nil
 }
 
-func (s *Store) update(change func(*State) error) (State, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// current returns the state to write from: the saved one, or before the first
+// save whatever adoptOverlay takes over.
+func (s *Store) current() (State, error) {
 	st, missing, err := s.load()
 	if err == nil && missing {
 		err = s.adoptOverlay(&st)
 	}
+	return st, err
+}
+
+func (s *Store) update(change func(*State) error) (State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st, err := s.current()
 	if err != nil {
 		return State{}, err
 	}

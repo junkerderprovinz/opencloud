@@ -21,7 +21,9 @@
           v-model="name"
           class="ext:mb-3"
           :label="$gettext('Name')"
-          :description-message="$gettext('Leave empty to use the OpenCloud default.')"
+          :description-message="
+            $gettext('Shown in the browser tab and on the login page. Leave empty for OpenCloud\'s name.')
+          "
           :maxlength="64"
         />
         <oc-text-input
@@ -29,7 +31,9 @@
           v-model="slogan"
           class="ext:mb-3"
           :label="$gettext('Slogan')"
-          :description-message="$gettext('Leave empty to use the OpenCloud default.')"
+          :description-message="
+            $gettext('Shown on the login page and on public link pages. Leave empty for OpenCloud\'s slogan.')
+          "
           :maxlength="120"
         />
         <oc-button id="branding-save" appearance="filled" :disabled="!textChanged || busy" @click="saveText">

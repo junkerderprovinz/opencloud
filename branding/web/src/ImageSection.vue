@@ -1,5 +1,5 @@
 <template>
-  <section>
+  <section :aria-busy="changing || undefined">
     <div class="ext:flex ext:items-center">
       <h2 class="ext:my-0 ext:text-lg ext:font-semibold" v-text="label" />
       <oc-button
@@ -20,7 +20,8 @@
       :class="previewClass"
       :style="preview.chrome && { backgroundColor: preview.chrome.background, color: preview.chrome.color }"
     >
-      <img v-if="preview.url" :src="preview.url" :alt="label" :class="imageClass" />
+      <oc-spinner v-if="changing" size="large" :aria-label="$gettext('Saving...')" />
+      <img v-else-if="preview.url" :src="preview.url" :alt="label" :class="imageClass" />
       <span v-else v-text="$gettext('OpenCloud default')" />
     </div>
     <p v-if="caption" class="ext:text-sm ext:text-role-on-surface-variant" v-text="caption" />
@@ -44,11 +45,12 @@ import { ContextActionMenu, type Action } from '@opencloud-eu/web-pkg'
 import { acceptedTypes, limits, MB, type ImageKind } from './api'
 import type { Preview } from './preview'
 
-const { kind, label, preview, busy } = defineProps<{
+const { kind, label, preview, busy, changing } = defineProps<{
   kind: ImageKind
   label: string
   preview: Preview
   busy: boolean
+  changing: boolean
 }>()
 const emit = defineEmits<{ upload: [file: File]; reset: [] }>()
 

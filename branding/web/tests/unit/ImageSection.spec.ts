@@ -13,12 +13,23 @@ function passThrough(tag: string) {
   })
 }
 
-function mountSection(props: { kind?: 'logo' | 'logo-dark'; label?: string; preview: Preview; busy?: boolean }) {
+function mountSection(props: {
+  kind?: 'logo' | 'logo-dark'
+  label?: string
+  preview: Preview
+  busy?: boolean
+  changing?: boolean
+}) {
   return mount(ImageSection, {
-    props: { kind: 'logo', label: 'Logo', busy: false, ...props },
+    props: { kind: 'logo', label: 'Logo', busy: false, changing: false, ...props },
     global: {
       plugins: [createGettext({ translations: {}, silent: true })],
-      components: { OcButton: passThrough('button'), OcDrop: passThrough('div'), OcIcon: passThrough('i') },
+      components: {
+        OcButton: passThrough('button'),
+        OcDrop: passThrough('div'),
+        OcIcon: passThrough('i'),
+        OcSpinner: passThrough('span')
+      },
       directives: { OcTooltip: {} },
       stubs: { ContextActionMenu: true }
     }
@@ -96,5 +107,17 @@ describe('ImageSection', () => {
     const box = wrapper.find('img').element.parentElement
     expect(box.style.backgroundColor).toBe('#20434f')
     expect(box.style.color).toBe('#ffffff')
+  })
+
+  it('shows progress only in the slot being changed', () => {
+    const changing = mountSection({ preview: { url: logo, source: 'custom' }, busy: true, changing: true })
+    const waiting = mountSection({ preview: { url: logo, source: 'custom' }, busy: true })
+
+    expect(changing.find('section').attributes('aria-busy')).toBe('true')
+    expect(changing.find('[aria-label="Saving..."]').exists()).toBe(true)
+    expect(changing.find('img').exists()).toBe(false)
+    expect(waiting.find('section').attributes('aria-busy')).toBeUndefined()
+    expect(waiting.find('[aria-label="Saving..."]').exists()).toBe(false)
+    expect(waiting.find('img').attributes('src')).toBe(logo)
   })
 })

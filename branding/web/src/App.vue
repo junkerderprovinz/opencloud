@@ -43,6 +43,7 @@
         :label="image.label"
         :preview="previewOf(image.kind, state, themeStore.availableThemes)"
         :busy="busy"
+        :changing="changing === image.kind"
         @upload="upload(image, $event)"
         @reset="reset(image)"
       >
@@ -81,6 +82,7 @@ const themeStore = useThemeStore()
 const branding = useBranding(brandingApi(useClientService().httpAuthenticated), reloadTheme)
 const { state, name, slogan, busy, textChanged } = branding
 const loadFailure = ref<Failure>()
+const changing = ref<ImageKind>()
 
 const restartNote = $gettext('Restart the container once to apply the login background change.')
 
@@ -92,6 +94,7 @@ const images: ImageSlot[] = [
 ]
 
 async function report(change: Promise<boolean>, done: string, failed: string, kind?: ImageKind) {
+  changing.value = kind
   try {
     const reloaded = await change
     const notes = [
@@ -102,6 +105,8 @@ async function report(change: Promise<boolean>, done: string, failed: string, ki
   } catch (e) {
     console.error(e)
     showErrorMessage({ title: failed, desc: failureText($gettext, failureOf(e), kind), errors: [e] })
+  } finally {
+    changing.value = undefined
   }
 }
 

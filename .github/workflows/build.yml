@@ -22,8 +22,8 @@ name: Build & Push
 # Triggers:
 #   * Push to main           -> production: production, latest, sha-<short>
 #                               rolling:    rolling, sha-<short>-rolling
-#   * Tag v*.*.*             -> production: <version>, <major>.<minor>, <major>
-#                               rolling:    <version>-rolling
+#   * Tag v*.*.*             -> production: <version>, <major>.<minor>, <major>, production, sha-<short>
+#                               rolling:    <version>-rolling, rolling, sha-<short>-rolling
 #   * Push to another branch -> <branch>, <branch>-rolling on GHCR only, for testing;
 #                               renovate/* branches do not build, a branch named
 #                               latest, production or rolling gets no tag, and a

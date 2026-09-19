@@ -50,13 +50,21 @@ export function failureOf(error: Error & { response?: { status: number } }): Fai
 const base = 'brandingsvc/api'
 const headers = { 'X-Branding-Request': '1' }
 
+// Without its route the request lands at the web service, which answers any path with 200 and its index.html.
+function stateOf({ data }: { data: unknown }) {
+  if (typeof data !== 'object' || data === null || typeof (data as BrandingState).name !== 'string') {
+    throw new Error('brandingsvc answered without a branding state')
+  }
+  return data as BrandingState
+}
+
 export function brandingApi(http: BrandingHttp) {
   return {
     async state() {
-      return (await http.get<BrandingState>(`${base}/state`, { headers })).data
+      return stateOf(await http.get<BrandingState>(`${base}/state`, { headers }))
     },
     async saveText(name: string, slogan: string) {
-      return (await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers })).data
+      return stateOf(await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers }))
     },
     // The format is left to the server, which reads the content; the browser only guesses from the name.
     async uploadImage(kind: ImageKind, file: Blob) {
@@ -64,12 +72,12 @@ export function brandingApi(http: BrandingHttp) {
         throw new FileTooLargeError(`${kind} is larger than ${limits[kind]} bytes`)
       }
       const config = { headers: { ...headers, 'Content-Type': 'application/octet-stream' } }
-      return (await http.put<BrandingState>(`${base}/image/${kind}`, file, config)).data
+      return stateOf(await http.put<BrandingState>(`${base}/image/${kind}`, file, config))
     },
     // HttpClient.delete hands its config to axios in a slot axios ignores.
     async clearImage(kind: ImageKind) {
       const config = { method: 'DELETE', url: `${base}/image/${kind}`, headers }
-      return (await http.request<BrandingState>(config)).data
+      return stateOf(await http.request<BrandingState>(config))
     }
   }
 }

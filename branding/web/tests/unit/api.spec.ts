@@ -87,6 +87,31 @@ describe('brandingApi', () => {
 
     expect(sent).toHaveLength(1)
   })
+
+  it('fails every call that is answered with a page instead of a branding state', async () => {
+    const api = brandingApi(
+      new HttpClient({
+        adapter: async (config) => ({
+          data: '<!DOCTYPE html><html><head><title>OpenCloud</title></head></html>',
+          status: 200,
+          statusText: 'OK',
+          headers: { 'content-type': 'text/html' },
+          config
+        })
+      })
+    )
+
+    const calls = [
+      () => api.state(),
+      () => api.saveText('Knight Cloud', 'Files, forged'),
+      () => api.uploadImage('logo', file('x')),
+      () => api.clearImage('logo')
+    ]
+    for (const call of calls) {
+      const error = await call().then(() => expect.unreachable(), (error: Error) => error)
+      expect(failureOf(error)).toBe('other')
+    }
+  })
 })
 
 describe('failureOf', () => {

@@ -435,7 +435,7 @@ Pull requests welcome. Issues: <https://github.com/junkerderprovinz/opencloud/is
 
 **Licensing — dual:**
 
-- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
+- This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, `branding/` with brandingd and the web extension, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 - **OpenCloud itself** and the bundled `gosu` binary are **Apache-2.0**; the Alpine base and its packages keep their own licenses. When you run, redistribute or rebuild the resulting image you must comply with **all** of those, not only this wrapper's AGPL-3.0 license. See [`NOTICE`](NOTICE).
 
 The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodified to identify the upstream project. This is an independent, community-maintained packaging and is **not affiliated with or endorsed by OpenCloud GmbH**.

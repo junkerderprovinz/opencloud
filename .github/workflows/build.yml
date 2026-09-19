@@ -237,6 +237,13 @@ jobs:
           echo "== app is registered =="
           fetch "$base/config.json" | jq -e '.external_apps[] | select(.id == "branding")' >/dev/null
 
+          echo "== sign-in page loads login.js =="
+          fetch "$base/signin/v1/identifier" > identifier.html
+          grep -qF '<script defer="defer" src="/brandingsvc/login.js"></script></head>' identifier.html || { echo "login page lacks the script tag"; cat identifier.html; exit 1; }
+          grep -qF 'data-bg-img=""' identifier.html
+          script=$(curl -sk --max-time 20 -o /dev/null -w '%{http_code} %{content_type}' "$base/brandingsvc/login.js") || true
+          case "$script" in "200 text/javascript"*) ;; *) echo "login.js answered $script"; exit 1 ;; esac
+
           echo "== refusals =="
           printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=' | base64 -d > logo.png
           expect 401 -H 'X-Branding-Request: 1' -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/logo"
@@ -263,15 +270,14 @@ jobs:
           if grep -qiE 'script|onload|alert' stored.svg; then echo "SVG was not sanitised"; cat stored.svg; exit 1; fi
           grep -q '<rect' stored.svg
 
-          echo "== login background after restart =="
+          echo "== login page data without a restart =="
+          fetch "$base/brandingsvc/login.json" | jq -e '. == {name: "", slogan: "", background: "", favicon: ""}'
+          expect 200 "${admin[@]}" -X PUT -H 'Content-Type: application/json' --data '{"name":"Smoke Cloud","slogan":"Checked in CI"}' "$base/brandingsvc/api/text"
           expect 200 "${admin[@]}" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/background"
           bg=$(fetch "${admin[@]}" "$base/brandingsvc/api/state" | jq -r '.background')
           case "$bg" in /themes/_branding/background-*.png) ;; *) echo "background is $bg"; exit 1 ;; esac
-          docker restart "$name" >/dev/null
-          wait_up true
-          fetch "$base/signin/v1/identifier" > identifier.html
-          grep -q 'data-bg-img="/brandingsvc/login-background"' identifier.html
-          fetch "$base/brandingsvc/login-background" -o background.png
+          fetch "$base/brandingsvc/login.json" | jq -e --arg bg "$bg" '.name == "Smoke Cloud" and .slogan == "Checked in CI" and .background == $bg'
+          fetch "$base$bg" -o background.png
           cmp logo.png background.png
 
           echo "== app off, branding kept =="
@@ -281,6 +287,7 @@ jobs:
           [ "$(curl -sk --max-time 20 "$base/brandingsvc/health")" != ok ] || { echo "brandingsvc still answers"; exit 1; }
           fetch "$base/signin/v1/identifier" > identifier.html
           grep -qF "data-bg-img=\"$bg\"" identifier.html || { echo "login page does not use $bg"; grep -o 'data-bg-img="[^"]*"' identifier.html; exit 1; }
+          if grep -qF '/brandingsvc/login.js' identifier.html; then echo "login page still loads login.js"; exit 1; fi
           fetch "$base$bg" -o background.png
           cmp logo.png background.png
           fetch "$base/themes/opencloud/theme.json" | jq -e --arg logo "$logo" '.common.logo == $logo'

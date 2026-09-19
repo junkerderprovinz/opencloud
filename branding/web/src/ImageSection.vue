@@ -22,22 +22,27 @@
         <context-action-menu :menu-sections="menuSections" :action-options="{}" />
       </oc-drop>
     </div>
-    <div
-      class="ext:mt-2 ext:flex ext:aspect-video ext:w-[280px] ext:max-w-full ext:items-center ext:justify-center ext:overflow-hidden ext:rounded-xl ext:border"
+    <!-- aria-disabled rather than disabled, so a keyboard user keeps the focus while the upload runs -->
+    <button
+      type="button"
+      class="ext:mt-2 ext:flex ext:aspect-video ext:w-[280px] ext:max-w-full ext:cursor-pointer ext:items-center ext:justify-center ext:overflow-hidden ext:rounded-xl ext:border ext:aria-disabled:cursor-default"
       :class="previewClass"
       :style="preview.chrome && { backgroundColor: preview.chrome.background, color: preview.chrome.color }"
+      :aria-label="uploadLabel"
+      :aria-disabled="busy || undefined"
+      @click="choose"
     >
       <oc-spinner v-if="changing" size="large" :aria-label="$gettext('Saving...')" />
       <img v-else-if="preview.url" :src="preview.url" :alt="label" :class="imageClass" />
       <span v-else v-text="$gettext('OpenCloud default')" />
-    </div>
+    </button>
     <p v-if="caption" class="ext:text-sm ext:text-role-on-surface-variant" v-text="caption" />
     <p class="ext:text-sm ext:text-role-on-surface-variant" v-text="hint" />
     <input
       ref="input"
       type="file"
       class="ext:hidden"
-      :aria-label="$gettext('Upload %{image}', { image: label })"
+      :aria-label="uploadLabel"
       :accept="acceptedTypes.join(',')"
       @change="picked"
     />
@@ -65,6 +70,7 @@ const input = ref<HTMLInputElement>()
 const menuId = `branding-${kind}-menu`
 
 const hint = $gettext('PNG, JPEG, GIF, WebP or SVG, up to %{size} MB', { size: String(limits[kind] / MB) })
+const uploadLabel = $gettext('Upload image: %{image}', { image: label })
 
 // A logo is previewed on the top bar of the theme it is made for, not on the current theme.
 // These colours stand in when that theme names none.
@@ -122,6 +128,12 @@ const actions: Action[] = [
 ]
 
 const menuSections = computed(() => [{ name: 'primaryActions', items: actions.filter((action) => action.isVisible()) }])
+
+function choose() {
+  if (!busy) {
+    input.value.click()
+  }
+}
 
 function picked() {
   const file = input.value.files[0]

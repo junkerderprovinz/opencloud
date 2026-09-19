@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h } from 'vue'
 import { enableAutoUnmount, mount, type VueWrapper } from '@vue/test-utils'
 import { createGettext } from 'vue3-gettext'
@@ -131,6 +131,29 @@ describe('ImageSection', () => {
     })
 
     expect(wrapper.find('#branding-logo-dark-menu + [title]').attributes('title')).toBe('Logo for dark mode')
+  })
+
+  it('opens the file picker from the preview', async () => {
+    const wrapper = mountSection({ preview: { url: logo, source: 'custom' } })
+    const picker = vi.spyOn(wrapper.find<HTMLInputElement>('input[type="file"]').element, 'click')
+    const box = wrapper.find('button[aria-label="Upload image: Logo"]')
+
+    await box.trigger('click')
+
+    expect(box.attributes('type')).toBe('button')
+    expect(box.find('img').attributes('src')).toBe(logo)
+    expect(picker).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the preview from opening the picker while a change runs', async () => {
+    const wrapper = mountSection({ preview: { url: logo, source: 'custom' }, busy: true })
+    const picker = vi.spyOn(wrapper.find<HTMLInputElement>('input[type="file"]').element, 'click')
+    const box = wrapper.find('button[aria-label="Upload image: Logo"]')
+
+    await box.trigger('click')
+
+    expect(box.attributes('aria-disabled')).toBe('true')
+    expect(picker).not.toHaveBeenCalled()
   })
 
   it('hands the chosen file on and clears the picker so the same file can be chosen again', async () => {

@@ -48,9 +48,10 @@ RUN opencloud version --skip-services > /tmp/opencloud-version \
         wget -q -O /tmp/base-theme.json "https://raw.githubusercontent.com/opencloud-eu/opencloud/v${version}/services/web/assets/themes/opencloud/theme.json" && break; \
         echo "base theme download failed (attempt ${attempt} of 3)"; \
         rm -f /tmp/base-theme.json; \
-        sleep 5; \
+        if [ "$attempt" -lt 3 ]; then sleep 5; fi; \
     done \
- && test -s /tmp/base-theme.json
+ && test -s /tmp/base-theme.json \
+ && grep -q '"themes"' /tmp/base-theme.json
 
 # brandingd is static, so it cross-compiles on the build host.
 FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS brandingd

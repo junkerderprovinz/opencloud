@@ -63,10 +63,95 @@ func do(h http.Handler, method, path string, body []byte, header map[string]stri
 	return rec
 }
 
-func TestHealthIsPublic(t *testing.T) {
+func TestPublicRoutesOnlyRead(t *testing.T) {
 	_, h := newServer(t, auth.ErrForbidden)
-	if rec := do(h, http.MethodGet, "/brandingsvc/health", nil, nil); rec.Code != http.StatusOK {
-		t.Fatalf("health = %d", rec.Code)
+	for _, path := range []string{"/brandingsvc/health", "/brandingsvc/login.js", "/brandingsvc/login.json"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			if rec := do(h, method, path, nil, nil); rec.Code != http.StatusOK {
+				t.Errorf("%s %s = %d, want 200", method, path, rec.Code)
+			}
+		}
+		for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions} {
+			if rec := do(h, method, path, nil, admin); rec.Code != http.StatusMethodNotAllowed {
+				t.Errorf("%s %s = %d, want 405", method, path, rec.Code)
+			}
+		}
+	}
+}
+
+func TestLoginScriptIsServedAsJavaScript(t *testing.T) {
+	_, h := newServer(t, nil)
+	rec := do(h, http.MethodGet, "/brandingsvc/login.js", nil, nil)
+	want := map[string]string{
+		"Content-Type":           "text/javascript; charset=utf-8",
+		"X-Content-Type-Options": "nosniff",
+		"Cache-Control":          "no-cache",
+	}
+	for k, v := range want {
+		if got := rec.Header().Get(k); got != v {
+			t.Errorf("%s = %q, want %q", k, got, v)
+		}
+	}
+	if !bytes.Equal(rec.Body.Bytes(), loginScript) || !strings.Contains(rec.Body.String(), "/brandingsvc/login.json") {
+		t.Errorf("body is not the login script: %.200q", rec.Body)
+	}
+}
+
+func loginJSON(t *testing.T, h http.Handler) string {
+	t.Helper()
+	rec := do(h, http.MethodGet, "/brandingsvc/login.json", nil, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login.json = %d %s", rec.Code, rec.Body)
+	}
+	if cc, ct := rec.Header().Get("Cache-Control"), rec.Header().Get("Content-Type"); cc != "no-store" || ct != "application/json" {
+		t.Errorf("login.json Cache-Control %q, Content-Type %q", cc, ct)
+	}
+	return strings.TrimSpace(rec.Body.String())
+}
+
+func TestLoginDataFollowsTheSavedState(t *testing.T) {
+	_, h := newServer(t, nil)
+	if got, want := loginJSON(t, h), `{"name":"","slogan":"","background":"","favicon":""}`; got != want {
+		t.Errorf("nothing saved: %s, want %s", got, want)
+	}
+	for _, r := range []struct {
+		path string
+		body []byte
+	}{
+		{"/brandingsvc/api/text", []byte(`{"name":"Knight Cloud","slogan":"Files, forged"}`)},
+		{"/brandingsvc/api/image/background", pngBytes},
+		{"/brandingsvc/api/image/favicon", append(append([]byte{}, pngBytes...), 'f')},
+		{"/brandingsvc/api/image/logo", append(append([]byte{}, pngBytes...), 'l')},
+	} {
+		if rec := do(h, http.MethodPut, r.path, r.body, admin); rec.Code != http.StatusOK {
+			t.Fatalf("PUT %s = %d %s", r.path, rec.Code, rec.Body)
+		}
+	}
+	var got map[string]string
+	if err := json.Unmarshal([]byte(loginJSON(t, h)), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 4 || got["name"] != "Knight Cloud" || got["slogan"] != "Files, forged" ||
+		!strings.HasPrefix(got["background"], "/themes/_branding/background-") ||
+		!strings.HasPrefix(got["favicon"], "/themes/_branding/favicon-") {
+		t.Errorf("saved: %v", got)
+	}
+}
+
+func TestStateAnswerCarriesTheBrandingOnly(t *testing.T) {
+	_, h := newServer(t, nil)
+	var got map[string]any
+	if err := json.Unmarshal(do(h, http.MethodGet, "/brandingsvc/api/state", nil, admin).Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range []string{"name", "slogan", "logo", "logoDark", "favicon", "background"} {
+		if _, ok := got[k]; !ok {
+			t.Errorf("state lacks %s", k)
+		}
+		delete(got, k)
+	}
+	if len(got) != 0 {
+		t.Errorf("state carries more: %v", got)
 	}
 }
 
@@ -151,12 +236,14 @@ func TestStateReadFailuresAreLogged(t *testing.T) {
 	if n := strings.Count(logs.String(), "\n"); n != 1 {
 		t.Errorf("state: %d log lines, want 1: %q", n, logs)
 	}
-	logs.Reset()
-	if rec := do(h, http.MethodGet, "/brandingsvc/login-background", nil, nil); rec.Code != http.StatusInternalServerError {
-		t.Errorf("login-background = %d, want 500", rec.Code)
-	}
-	if n := strings.Count(logs.String(), "\n"); n != 1 {
-		t.Errorf("login-background: %d log lines, want 1: %q", n, logs)
+	for _, path := range []string{"/brandingsvc/login-background", "/brandingsvc/login.json"} {
+		logs.Reset()
+		if rec := do(h, http.MethodGet, path, nil, nil); rec.Code != http.StatusInternalServerError {
+			t.Errorf("%s = %d, want 500", path, rec.Code)
+		}
+		if n := strings.Count(logs.String(), "\n"); n != 1 {
+			t.Errorf("%s: %d log lines, want 1: %q", path, n, logs)
+		}
 	}
 }
 
@@ -296,6 +383,9 @@ func TestSavedImageNamesMustBeAssetNames(t *testing.T) {
 		}
 		if v.Background != c.wantURL {
 			t.Errorf("%s: state background = %q, want %q", c.background, v.Background, c.wantURL)
+		}
+		if got := loginJSON(t, h); !strings.Contains(got, `"background":"`+c.wantURL+`"`) {
+			t.Errorf("%s: login.json = %s, want background %q", c.background, got, c.wantURL)
 		}
 	}
 }

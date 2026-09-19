@@ -5,6 +5,7 @@ package api
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"io"
@@ -23,6 +24,11 @@ import (
 // transferTimeout bounds an image upload and the background download.
 const transferTimeout = 10 * time.Minute
 
+// loginScript is loaded by the sign-in page that the image ships with.
+//
+//go:embed login.js
+var loginScript []byte
+
 // Authorizer decides whether a request may read or change the branding.
 type Authorizer interface {
 	Check(ctx context.Context, authorization string) error
@@ -32,27 +38,33 @@ type Authorizer interface {
 type Server struct {
 	Store *theme.Store
 	Auth  Authorizer
-	// LoginBackgroundActive says whether the IDP was started with a
-	// background URL. Only a container restart changes that.
-	LoginBackgroundActive bool
 }
 
 // view is the state as the web app sees it; image fields are URLs.
 type view struct {
-	Name                  string `json:"name"`
-	Slogan                string `json:"slogan"`
-	Logo                  string `json:"logo"`
-	LogoDark              string `json:"logoDark"`
-	Favicon               string `json:"favicon"`
-	Background            string `json:"background"`
-	LoginBackgroundActive bool   `json:"loginBackgroundActive"`
+	Name       string `json:"name"`
+	Slogan     string `json:"slogan"`
+	Logo       string `json:"logo"`
+	LogoDark   string `json:"logoDark"`
+	Favicon    string `json:"favicon"`
+	Background string `json:"background"`
 }
 
-// Handler returns the routes. Method patterns make every other method,
-// OPTIONS included, answer 405.
+// loginView is what the sign-in page needs, public before anyone signs in.
+type loginView struct {
+	Name       string `json:"name"`
+	Slogan     string `json:"slogan"`
+	Background string `json:"background"`
+	Favicon    string `json:"favicon"`
+}
+
+// Handler returns the routes. A GET pattern also answers HEAD, and method
+// patterns make every other method, OPTIONS included, answer 405.
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /brandingsvc/health", s.health)
+	mux.HandleFunc("GET /brandingsvc/login.js", s.loginJS)
+	mux.HandleFunc("GET /brandingsvc/login.json", s.loginJSON)
 	mux.HandleFunc("GET /brandingsvc/login-background", s.loginBackground)
 	mux.HandleFunc("GET /brandingsvc/api/state", s.guard(s.getState))
 	mux.HandleFunc("PUT /brandingsvc/api/text", s.guard(s.putText))
@@ -89,6 +101,30 @@ func (s *Server) guard(next http.HandlerFunc) http.HandlerFunc {
 func (s *Server) health(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	_, _ = io.WriteString(w, "ok\n")
+}
+
+func (s *Server) loginJS(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Cache-Control", "no-cache")
+	_, _ = w.Write(loginScript)
+}
+
+func (s *Server) loginJSON(w http.ResponseWriter, _ *http.Request) {
+	st, err := s.Store.Load()
+	if err != nil {
+		log.Printf("brandingd: %v", err)
+		http.Error(w, "state unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	_ = json.NewEncoder(w).Encode(loginView{
+		Name:       st.Name,
+		Slogan:     st.Slogan,
+		Background: assetURL(st.Background),
+		Favicon:    assetURL(st.Favicon),
+	})
 }
 
 func (s *Server) loginBackground(w http.ResponseWriter, r *http.Request) {
@@ -205,21 +241,23 @@ func (s *Server) respond(w http.ResponseWriter, st theme.State, err error) {
 		http.Error(w, "saving failed", http.StatusInternalServerError)
 		return
 	}
-	url := func(file string) string {
-		if file == "" {
-			return ""
-		}
-		return "/" + theme.AssetPrefix + file
-	}
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	_ = json.NewEncoder(w).Encode(view{
-		Name:                  st.Name,
-		Slogan:                st.Slogan,
-		Logo:                  url(st.Logo),
-		LogoDark:              url(st.LogoDark),
-		Favicon:               url(st.Favicon),
-		Background:            url(st.Background),
-		LoginBackgroundActive: s.LoginBackgroundActive,
+		Name:       st.Name,
+		Slogan:     st.Slogan,
+		Logo:       assetURL(st.Logo),
+		LogoDark:   assetURL(st.LogoDark),
+		Favicon:    assetURL(st.Favicon),
+		Background: assetURL(st.Background),
 	})
+}
+
+// assetURL turns a file name from the state, which Store.Load has checked
+// against the asset name pattern, into its path on the OpenCloud origin.
+func assetURL(file string) string {
+	if file == "" {
+		return ""
+	}
+	return "/" + theme.AssetPrefix + file
 }

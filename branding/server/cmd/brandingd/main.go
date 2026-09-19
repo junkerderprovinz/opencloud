@@ -72,7 +72,6 @@ func run(args []string) error {
 				CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 			},
 		},
-		LoginBackgroundActive: os.Getenv("BRANDING_LOGIN_BACKGROUND_ACTIVE") == "true",
 	}).Handler()
 	// The api handlers set body deadlines per transfer; a server-wide one
 	// would cut off a 25 MB background on a slow link.

@@ -1,6 +1,5 @@
 #!/bin/sh
-# =============================================================================
-# entrypoint.sh - one-click init + privilege drop for OpenCloud on Unraid
+# One-click init and privilege drop for OpenCloud on Unraid.
 #
 # Runs as root (see `USER root` in the Dockerfile) so it can, in order:
 #   1. create the config/data dirs and heal their ownership for the target user
@@ -10,8 +9,7 @@
 # PUID/PGID default to Unraid's nobody:users (99:100). The OpenCloud env vars
 # (IDM_ADMIN_PASSWORD, OC_URL, OC_INSECURE, OC_LOG_LEVEL, PROXY_TLS,
 # IDM_CREATE_DEMO_USERS, ...) are preserved across the gosu drop and read by
-# OpenCloud itself - init consumes IDM_ADMIN_PASSWORD on the first run.
-# =============================================================================
+# OpenCloud itself; init consumes IDM_ADMIN_PASSWORD on the first run.
 set -eu
 
 PUID="${PUID:-99}"
@@ -24,20 +22,20 @@ if [ "$(id -u)" = "0" ]; then
     # Run everything below dropped to the target user.
     DROP="gosu ${PUID}:${PGID}"
 
-    # --- permission heal -----------------------------------------------------
     # On a fresh Unraid install the bind mounts arrive root-owned. Create them if
     # missing and hand them to the target user.
     mkdir -p "${CONFIG_DIR}" "${DATA_DIR}"
 
-    # Config dir is small (a few YAML files + secrets) -> always chown -R, cheap.
+    # The config dir is small (a few YAML files and secrets), so a recursive
+    # chown on every boot is cheap.
     chown -R "${PUID}:${PGID}" "${CONFIG_DIR}"
 
-    # Data dir can grow huge (all user blobs live under it) -> do NOT chown -R on
-    # every boot. The server runs AS the target user, so whatever it creates is
-    # already owned correctly; a recursive pass is only needed to REPAIR a tree
-    # written earlier as root, or after a PUID/PGID change. A sentinel records the
-    # last-healed owner so the expensive pass runs at most once per (PUID:PGID).
-    chown "${PUID}:${PGID}" "${DATA_DIR}"          # top level only - cheap
+    # The data dir can grow huge (all user blobs live under it), so it is not
+    # chowned recursively on every boot. The server runs as the target user and
+    # creates files with the right owner; a recursive pass is only needed to
+    # repair a tree written earlier as root, or after a PUID/PGID change. A
+    # sentinel records the last-healed owner so that pass runs once per PUID:PGID.
+    chown "${PUID}:${PGID}" "${DATA_DIR}"          # top level only
     want="${PUID}:${PGID}"
     if [ ! -f "${SENTINEL}" ] || [ "$(cat "${SENTINEL}" 2>/dev/null)" != "${want}" ]; then
         echo "[entrypoint] healing ownership of ${DATA_DIR} -> ${want} (first run or PUID/PGID change)"
@@ -45,13 +43,13 @@ if [ "$(id -u)" = "0" ]; then
         printf '%s' "${want}" > "${SENTINEL}"
         chown "${PUID}:${PGID}" "${SENTINEL}"
     fi
-    # NATS (the internal message bus) is small and must always be writable by the
-    # user, even if it first appears after the one-time heal - cheap to re-assert.
+    # NATS (the internal message bus) is small and has to stay writable by the
+    # user even if it first appears after the one-time heal.
     if [ -d "${DATA_DIR}/nats" ]; then
         chown -R "${PUID}:${PGID}" "${DATA_DIR}/nats"
     fi
 else
-    echo "[entrypoint] not running as root (uid $(id -u)) - skipping permission heal"
+    echo "[entrypoint] not running as root (uid $(id -u)), skipping permission heal"
     DROP=""
 fi
 
@@ -59,15 +57,14 @@ fi
 # data volume instead of the image's /root.
 export HOME="${DATA_DIR}"
 
-# --- external URL / TLS defaults --------------------------------------------
-# OC_URL is the public URL clients use AND the built-in IDP's OIDC issuer, so it
-# must be a valid https URL. Unraid only substitutes its [IP]/[PORT] tokens in the
-# template's WebUI field, NOT in env vars - a template default like
-# https://[IP]:[PORT:9200] therefore arrives here verbatim and crashes the reva
-# gateway ("invalid IP-literal"). If OC_URL is empty or still holds a bracket /
-# placeholder value, derive a usable one from the container's own IP so the server
-# boots instead of crash-looping. Set OC_URL to your real server (or reverse-proxy)
-# address for logins to work from every client.
+# OC_URL is both the public URL clients use and the built-in IDP's OIDC issuer,
+# so it has to be a valid https URL. Unraid substitutes its [IP]/[PORT] tokens
+# only in the template's WebUI field, not in env vars, so a default like
+# https://[IP]:[PORT:9200] arrives here verbatim and crashes the reva gateway
+# ("invalid IP-literal"). If OC_URL is empty or still a placeholder, derive one
+# from the container's own IP so the server boots instead of crash-looping.
+# Logins from every client need OC_URL set to the real server or reverse-proxy
+# address.
 case "${OC_URL:-}" in
     ""|*"["*|*YOUR-SERVER-IP*)
         _ip="$(hostname -i 2>/dev/null | awk '{print $1}')"
@@ -85,16 +82,15 @@ export OC_URL
 export OC_INSECURE="${OC_INSECURE:-true}"
 export PROXY_TLS="${PROXY_TLS:-true}"
 
-# --- optional web-office (WOPI) wiring ---------------------------------------
-# OFFICE selects a browser document editor: off (default) | collabora | onlyoffice.
-# The document server ALWAYS runs as a SEPARATE container (Collabora CODE, or an
-# OnlyOffice/Euro Office Document Server); this only turns on OpenCloud's built-in
-# 'collaboration' (WOPI) service and points it at that server. OFFICE_SERVER_URL =
-# the browser-reachable URL of that container; OFFICE_WOPI_SECRET = a shared secret.
-# Values verified against opencloud-compose weboffice/collabora.yml. Default off, so
-# a normal install is unaffected.
-# Euro Office is an ONLYOFFICE fork, so it is driven as the "OnlyOffice" product with
-# its own display name (verified against opencloud-compose weboffice/euro-office.yml).
+# Optional web office (WOPI). OFFICE selects a browser document editor: off
+# (default), collabora, onlyoffice or euro-office. The document server runs as its
+# own container (Collabora CODE, or an OnlyOffice/Euro Office Document Server);
+# this only turns on OpenCloud's built-in 'collaboration' (WOPI) service and
+# points it at that server. OFFICE_SERVER_URL is the browser-reachable URL of that
+# container, OFFICE_WOPI_SECRET a shared secret. Values checked against
+# opencloud-compose weboffice/collabora.yml and weboffice/euro-office.yml. Euro
+# Office is an ONLYOFFICE fork, so it is driven as the "OnlyOffice" product with
+# its own display name.
 _office="$(printf '%s' "${OFFICE:-off}" | tr '[:upper:]' '[:lower:]')"
 case "${_office}" in
     collabora)                 _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
@@ -110,36 +106,33 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     export COLLABORATION_APP_ADDR="${OFFICE_SERVER_URL}"
     export COLLABORATION_WOPI_SRC="${OC_URL}"
     [ -n "${OFFICE_WOPI_SECRET:-}" ] && export COLLABORATION_WOPI_SECRET="${OFFICE_WOPI_SECRET}"
-    # OnlyOffice/Euro Office reject every document with "document security token is
-    # not correctly formed" unless the WOPI secret here matches the doc server's own
-    # JWT secret exactly - warn loudly rather than fail silently when it's unset.
+    # OnlyOffice and Euro Office reject every document with "document security
+    # token is not correctly formed" unless the WOPI secret here matches the doc
+    # server's own JWT secret exactly.
     if [ "${_oc_app_product}" = "OnlyOffice" ] && [ -z "${OFFICE_WOPI_SECRET:-}" ]; then
-        echo "[entrypoint] WARNING: OFFICE=${OFFICE} but OFFICE_WOPI_SECRET is empty - documents will fail with 'document security token is not correctly formed' unless it exactly matches the document server's JWT secret"
+        echo "[entrypoint] WARNING: OFFICE=${OFFICE} but OFFICE_WOPI_SECRET is empty; documents will fail with 'document security token is not correctly formed' unless it exactly matches the document server's JWT secret"
     fi
-    # tolerate self-signed certs on the doc server + internal data gateway (LAN default)
+    # tolerate self-signed certs on the doc server and the internal data gateway (LAN default)
     export COLLABORATION_APP_INSECURE="${COLLABORATION_APP_INSECURE:-true}"
     export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"
     # OnlyOffice signs with its own JWT rather than Collabora-style proof keys
     [ "${_oc_app_product}" = "OnlyOffice" ] && export COLLABORATION_APP_PROOF_DISABLE="${COLLABORATION_APP_PROOF_DISABLE:-true}"
-    # register the collaboration app as the secure-view/edit handler + expose the
+    # register the collaboration app as the secure-view/edit handler and expose the
     # secure-view role (exact default role set incl. secure-view, from opencloud-compose)
     export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
     export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
-    # Registering a WOPI app above does NOT add its origin to OpenCloud's own
+    # Registering a WOPI app does not add its origin to OpenCloud's own
     # Content-Security-Policy: COLLABORATION_APP_ADDR and the proxy's frame-src
-    # allowlist are two unrelated settings that happen to need the same value.
-    # Without this, the browser blocks the editor iframe with a CSP frame-src
-    # violation even though the WOPI wiring above is entirely correct - hit for
-    # real with Euro Office (see junkerderprovinz/unraid-apps#7). Verified
-    # against opencloud-compose's weboffice/*.yml + config/opencloud/csp.yaml,
-    # which wire the exact same origin into both places by hand; this generates
-    # that second half automatically instead of requiring a manual csp.yaml.
-    # PROXY_CSP_CONFIG_FILE_LOCATION entries are merged into OpenCloud's built-in
-    # CSP (additive, not a replacement), so this file only needs the addition.
+    # allowlist are separate settings that need the same value. Without this the
+    # browser blocks the editor iframe with a CSP frame-src violation
+    # (junkerderprovinz/unraid-apps#7). opencloud-compose's weboffice/*.yml and
+    # config/opencloud/csp.yaml wire the same origin into both places by hand;
+    # this writes the second half automatically. PROXY_CSP_CONFIG_FILE_LOCATION
+    # entries are merged into OpenCloud's built-in CSP, so the file only needs
+    # the addition.
     if [ -z "${PROXY_CSP_CONFIG_FILE_LOCATION:-}" ]; then
-        # Portable origin extraction (POSIX parameter expansion, no sed dialect
-        # to worry about): split off the scheme, take everything up to the next
-        # '/' as host[:port], drop any path/query OFFICE_SERVER_URL might carry.
+        # Reduce OFFICE_SERVER_URL to scheme://host[:port]/, dropping any path or
+        # query, with parameter expansion rather than a sed dialect.
         _oc_office_rest="${OFFICE_SERVER_URL#*://}"
         _oc_office_hostport="${_oc_office_rest%%/*}"
         _oc_office_origin="${OFFICE_SERVER_URL%%://*}://${_oc_office_hostport}/"
@@ -154,24 +147,22 @@ EOF
         export PROXY_CSP_CONFIG_FILE_LOCATION="${CONFIG_DIR}/csp.yaml"
         echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on, CSP frame-src updated)"
     else
-        # The user already points OpenCloud at their own CSP file - do not
-        # overwrite it, but they need to add ${OFFICE_SERVER_URL} to its
-        # frame-src/img-src themselves or the editor iframe will be blocked.
+        # The user already points OpenCloud at their own CSP file, so it stays
+        # untouched and they add ${OFFICE_SERVER_URL} to its frame-src/img-src
+        # themselves.
         echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on)"
-        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set, add ${OFFICE_SERVER_URL} to its frame-src/img-src yourself or the editor iframe will be CSP-blocked"
+        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set; add ${OFFICE_SERVER_URL} to its frame-src/img-src yourself or the editor iframe will be CSP-blocked"
     fi
 elif [ -n "${_oc_app_name}" ]; then
-    echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office NOT enabled"
+    echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office not enabled"
 fi
 
-# --- optional full-text search (Apache Tika) --------------------------------
-# FULLTEXT_SEARCH=true turns on content search (searching INSIDE files, not just
-# names). Apache Tika ALWAYS runs as a SEPARATE container (apache/tika, port
-# 9998); this only points OpenCloud's search extractor at it and tells the web
-# UI that full-text search is available. TIKA_URL = that container's
-# network-reachable URL. Default off, so a normal install is unaffected. Values
-# verified against the OpenCloud search docs. Note: only files uploaded or
-# changed AFTER this get their contents indexed; existing files are not.
+# Optional full-text search. FULLTEXT_SEARCH=true turns on searching inside files,
+# not just their names. Apache Tika runs as its own container (apache/tika, port
+# 9998); this points OpenCloud's search extractor at it and tells the web UI that
+# full-text search is available. TIKA_URL is that container's network-reachable
+# URL. Values checked against the OpenCloud search docs. Only files uploaded or
+# changed after this get their contents indexed.
 _fts="$(printf '%s' "${FULLTEXT_SEARCH:-false}" | tr '[:upper:]' '[:lower:]')"
 if [ "${_fts}" = "true" ] && [ -n "${TIKA_URL:-}" ]; then
     export SEARCH_EXTRACTOR_TYPE="tika"
@@ -182,28 +173,25 @@ if [ "${_fts}" = "true" ] && [ -n "${TIKA_URL:-}" ]; then
     export FRONTEND_FULL_TEXT_SEARCH_ENABLED="true"
     echo "[entrypoint] full-text search enabled: Apache Tika at ${TIKA_URL} (content indexing on for new/changed files)"
 elif [ "${_fts}" = "true" ]; then
-    echo "[entrypoint] FULLTEXT_SEARCH=true but TIKA_URL is empty -> full-text search NOT enabled"
+    echo "[entrypoint] FULLTEXT_SEARCH=true but TIKA_URL is empty -> full-text search not enabled"
 fi
 
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
-# IDM_ADMIN_PASSWORD. Idempotent: on later boots the file exists and init exits
-# non-zero, which we deliberately ignore (|| true).
+# IDM_ADMIN_PASSWORD. On later boots the file exists and init exits non-zero,
+# which is ignored.
 #
-# 'opencloud init' reads --insecure, a STRING flag whose default value "ask" opens
-# an interactive stdin prompt. In a container with no TTY that prompt never gets an
-# answer and spins forever (it loops on EOF), so the wrapper hangs on a fresh
-# install. We ALWAYS pass an explicit value so it can never be "ask", and redirect
-# stdin from /dev/null as belt-and-suspenders. Do NOT add --force-overwrite: it
-# regenerates every service secret and the admin password on each boot.
+# 'opencloud init' reads --insecure, a string flag whose default "ask" opens an
+# interactive prompt. Without a TTY that prompt loops on EOF forever and the
+# container hangs on a fresh install, so an explicit value is always passed and
+# stdin comes from /dev/null. Leave out --force-overwrite: it regenerates every
+# service secret and the admin password on each boot.
 echo "[entrypoint] running 'opencloud init' (harmless error if already initialised)"
 # shellcheck disable=SC2086
 ${DROP} opencloud init --insecure "${OC_INSECURE}" </dev/null || true
 
-# House ready banner - the LAST block this wrapper prints before handing off to
-# the OpenCloud server (which then streams its own logs). There is no health
-# check here (nothing can run after the exec below replaces this process), so
-# the status line marks the handoff itself rather than a verified ready-check,
-# same as it always has -- just on the shared one-line status format now.
+# House ready banner, the last block this wrapper prints before the OpenCloud
+# server takes over the log. Nothing can run after the exec below, so the status
+# line marks the handoff rather than a verified health check.
 /usr/local/bin/print-banner.sh "OpenCloud" "Cloud storage & collaboration platform, plug-and-play for Unraid"
 printf '  \033[0;32m✓ OPENCLOUD IS READY\033[0m - Handing off to the OpenCloud server now\n'
 echo ""

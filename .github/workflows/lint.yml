@@ -17,9 +17,9 @@ jobs:
       - uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6 # v3.4.0
         with:
           dockerfile: Dockerfile
-          # The wrapper Dockerfile carries inline `hadolint ignore=` for the two
-          # deliberate cases (DL3006 on `FROM ${BASE}`, DL3002 on the intentional
-          # `USER root` that the entrypoint drops from via gosu).
+          # The Dockerfile carries inline `hadolint ignore=` for DL3006 on
+          # `FROM ${BASE}` and DL3002 on the `USER root` that the entrypoint drops
+          # from via gosu.
           failure-threshold: warning
 
   shellcheck:
@@ -48,8 +48,7 @@ jobs:
         run: |
           sudo apt-get update -o Acquire::Retries=3
           sudo apt-get install -y libxml2-utils
-          # No XML ships in this repo today (the CA template lives in unraid-apps),
-          # but keep the guard so any future XML is validated automatically.
+          # The CA template lives in unraid-apps; this validates any XML added here.
           for f in $(find . -name '*.xml' -not -path './.git/*'); do
             echo "Checking $f"
             xmllint --noout "$f"

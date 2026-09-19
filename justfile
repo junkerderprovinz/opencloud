@@ -1,5 +1,5 @@
-# justfile - OpenCloud for Unraid (wrapper image)
-# Recipes mirror the real CI flows (see .github/workflows/ and the Dockerfile).
+# OpenCloud for Unraid (wrapper image).
+# Recipes mirror the CI flows (see .github/workflows/ and the Dockerfile).
 # Run `just --list` to see everything. POSIX sh recipes.
 
 set shell := ["sh", "-euc"]
@@ -10,10 +10,6 @@ IMAGE := "opencloud:dev"
 # Show available recipes.
 default:
     @just --list
-
-# ---------------------------------------------------------------------------
-# Build (two channels select the upstream base via --build-arg BASE=)
-# ---------------------------------------------------------------------------
 
 # Build the :production channel (default base pin from the Dockerfile).
 build:
@@ -27,15 +23,11 @@ build-rolling:
     echo "rolling base: $base"
     docker build --build-arg BASE="$base" -t opencloud:rolling .
 
-# Multi-arch production build (amd64 + arm64) - needs buildx.
+# Multi-arch production build (amd64 and arm64), needs buildx.
 build-multi:
     docker buildx build --platform linux/amd64,linux/arm64 -t {{IMAGE}} --load .
 
-# ---------------------------------------------------------------------------
-# Smoke / run  (mirrors the CI smoke gate)
-# ---------------------------------------------------------------------------
-
-# Assert gosu/opencloud/entrypoint are present, then boot and wait for the banner.
+# The CI smoke gate: check gosu, opencloud and the entrypoint, then boot and wait for the banner.
 smoke: build
     #!/usr/bin/env sh
     set -eu
@@ -64,11 +56,7 @@ run:
         -e IDM_ADMIN_PASSWORD=changeme -e OC_URL=https://localhost:9200 -e OC_INSECURE=true \
         -v "$PWD/.dev-config:/etc/opencloud" -v "$PWD/.dev-data:/var/lib/opencloud" {{IMAGE}}
 
-# ---------------------------------------------------------------------------
-# Lint  (mirrors lint.yml)
-# ---------------------------------------------------------------------------
-
-# All lint checks.
+# All lint checks, as in lint.yml.
 lint: hadolint shellcheck
 
 # Hadolint the Dockerfile.
@@ -79,11 +67,7 @@ hadolint:
 shellcheck:
     shellcheck -S warning entrypoint.sh print-banner.sh
 
-# ---------------------------------------------------------------------------
-# Assets
-# ---------------------------------------------------------------------------
-
-# Regenerate the README banners (Node + resvg + opentype.js, global installs).
+# Regenerate the README banners (Node, resvg and opentype.js, global installs).
 banner:
     node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
 

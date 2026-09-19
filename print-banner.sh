@@ -1,11 +1,9 @@
 #!/bin/sh
-# -----------------------------------------------------------------------------
 # print-banner.sh <container-name> <subtitle>
-# Shared Junker-der-Provinz init-log banner (POSIX sh - the OpenCloud base image
-# is Alpine and has no bash). The ASCII art in /usr/local/share/banner.txt is
-# identical across all container images; the name + subtitle are passed at
-# runtime so the shared art stays generic.
-# -----------------------------------------------------------------------------
+# Prints the shared Junker der Provinz init-log banner. POSIX sh, because the
+# OpenCloud base image is Alpine without bash. The ASCII art in
+# /usr/local/share/banner.txt is the same in every image; name and subtitle are
+# passed at runtime so the art stays generic.
 CONTAINER="${1:-Container}"
 SUBTITLE="${2:-}"
 BANNER_FILE="/usr/local/share/banner.txt"
@@ -24,10 +22,7 @@ else
     echo ""
 fi
 
-# Clean title block: name + subtitle on ONE line (house look, no rules). The
-# caller's READY/status line follows directly below the blank line this
-# prints -- the banner + title + status block is always the LAST thing this
-# container's own boot log prints.
+# The caller prints its status line right after the trailing blank line.
 if [ -n "${SUBTITLE}" ]; then
     printf '  %s · %s\n' "${CONTAINER}" "${SUBTITLE}"
 else

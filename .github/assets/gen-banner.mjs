@@ -1,21 +1,14 @@
 /**
- * Generates the OpenCloud README banners (theme-adaptive pair):
- *   opencloud-banner.svg / .png      : 1600x500 - white bg, teal official lockup
+ * Generates the OpenCloud README banners, a light and dark pair for <picture>:
+ *   opencloud-banner.svg / .png      : 1600x500, white ground, teal official lockup
  *   opencloud-banner-dark.svg / .png : GitHub-dark #0d1117, lockup recoloured white
- * The README serves the pair via <picture> (prefers-color-scheme).
  *
- * House banner standard (theme-flip). The official OpenCloud lockup keeps its
- * brand colour - teal (#20434F) on the white banner, white on the dark banner -
- * left-anchored, with a grey claim under the wordmark. (Earlier this was a jdp
- * dark-only exception; standardised 2026-08-04.)
- *
- * The official OpenCloud logo is a combined mark+wordmark lockup. It is split
- * into its mark paths (the hexagon) and its wordmark paths ("OpenCloud"),
- * classified by X POSITION (the paths are NOT ordered mark-then-wordmark) - both
- * VERBATIM from the official SVG, never redrawn, only recoloured white. The mark
- * is rendered clearly larger than the wordmark; the wordmark is sized to the
- * house name height. The claim is Lato (OFL) in grey, converted to paths so the
- * SVG needs no font.
+ * The official lockup is left-anchored with a grey claim under the wordmark. It
+ * is one SVG with mark and wordmark together, split here into the hexagon mark
+ * and the "OpenCloud" wordmark by x position, since the paths are not ordered
+ * mark first. Both are used as drawn, only recoloured. The mark is clearly larger
+ * than the wordmark, which is sized to the house name height. The claim is Lato
+ * (OFL), converted to paths so the SVG needs no font.
  *
  * Deps: `npm i -g @resvg/resvg-js opentype.js`. Run:
  *   node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
@@ -34,24 +27,19 @@ const { Resvg } = require(`${groot}/@resvg/resvg-js`);
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 
-// ---- content + sizing ------------------------------------------------------
 const CLAIM = "Your files. Your cloud. Your terms.";
 const W = 1600, H = 500;
 const WORD_H = 132;      // wordmark = the house name size
-const MARK_H = 400;      // mark = the house logo height (jdp-approved big logo)
+const MARK_H = 400;      // mark = the house logo height
 const GAP = 70;          // gap between the mark (logo) and the wordmark
 const claimSize = 44, lineGap = 8;
-// House banner standard (theme-flip): the official OpenCloud lockup keeps its brand
-// colour - teal (#20434F) on the white banner, recoloured white on the dark banner;
-// claim in grey. (Earlier a jdp dark-only exception; standardised 2026-08-04.)
 const SRC_LOGO = "opencloud-logo.svg";
 const THEMES = [
   { suffix: "",      bg: "#ffffff", logoColor: "#20434F", claim: "#5a5d5e" },
   { suffix: "-dark", bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
 ];
-// ---------------------------------------------------------------------------
 
-// Lato (OFL) for the claim - fetched at runtime, never committed.
+// Lato (OFL) for the claim, fetched at runtime and not committed.
 const claimFontPath = join(tmpdir(), "opencloud-Lato-Regular.ttf");
 if (!existsSync(claimFontPath)) {
   const r = await fetch("https://github.com/google/fonts/raw/main/ofl/lato/Lato-Regular.ttf");
@@ -64,10 +52,10 @@ const cEm = (s) => s / claimFont.unitsPerEm;
 const claimAsc = claimFont.ascender * cEm(claimSize);
 const claimDesc = -claimFont.descender * cEm(claimSize);
 
-// Split the official lockup into mark + wordmark by X POSITION (the paths are NOT
-// ordered mark-then-wordmark; the hexagon paths sit in the middle of the list).
-// The mark occupies the left ~16% of the viewBox (x 0..27 of 170); everything
-// further right is the wordmark. Measure each group's tight bbox via resvg.
+// Split the official lockup into mark and wordmark by x position; the hexagon
+// paths sit in the middle of the list. The mark occupies the left ~16% of the
+// viewBox (x 0..27 of 170) and everything further right is the wordmark. Each
+// group's tight bbox is measured with resvg.
 function parseLogo(file) {
   const raw = readFileSync(join(__dir, file), "utf8");
   const vb = (raw.match(/viewBox="([^"]+)"/) || [, "0 0 170 35"])[1];
@@ -98,14 +86,13 @@ function place(inner, bb, x, y, h) {
 
 const L = parseLogo(SRC_LOGO);
 for (const t of THEMES) {
-  // Recolour the official teal geometry to the theme's logo colour (white).
+  // Recolour the official teal geometry to the theme's logo colour.
   const recolor = (s) => s.replace(/#[0-9a-fA-F]{6}/g, t.logoColor);
   const markW = MARK_H * (L.markBB.width / L.markBB.height);
   const wordW = WORD_H * (L.wordBB.width / L.wordBB.height);
 
-  // Mark (logo) vertically centred at H/2; the [wordmark + claim] text block also
-  // centred at H/2 to its right (house standard: the logo and the text each centre
-  // on the middle, so the big mark no longer drags the wordmark upward).
+  // The mark and the text block of wordmark and claim each centre on H/2, so the
+  // big mark does not drag the wordmark upward.
   const startX = 165; // left-anchored (house banner standard)
   const markY = (H - MARK_H) / 2;
   const mark = place(recolor(L.mark), L.markBB, startX, markY, MARK_H);

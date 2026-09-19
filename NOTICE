@@ -22,6 +22,8 @@ image. Each bundled component retains its upstream license:
     (built into brandingd)       https://go.dev/LICENSE
   * Module Federation runtime    MIT
     (in the web extension)       https://github.com/module-federation/core
+  * Tailwind CSS                 MIT
+    (in the web extension CSS)   https://github.com/tailwindlabs/tailwindcss
 
 Brand artwork
 -------------

@@ -279,7 +279,7 @@ Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for th
 
 To upload an image, click its preview in the app. The menu next to its heading also resets it to the OpenCloud default. Saved changes need no restart: the app updates the page you have open, and every other page, the login page included, picks them up on its next load. Only switching `BRANDING_APP` on or off needs a container restart.
 
-If you set `IDP_ASSET_PATH` yourself, the wrapper leaves it alone, and the app does not change the login page's title, footer or favicon. The page still shows your logo and background, but it learns only at container start whether there is a background, so adding the first one or removing it again needs a restart.
+If you set `IDP_ASSET_PATH` yourself, the wrapper leaves it alone, and the app does not change the login page's title, footer or favicon. The page still shows your logo and background, but it learns only at container start whether there is a background, so adding the first one or removing it again needs a restart. The wrapper looks only at the environment variable: while the app is on, its own `IDP_ASSET_PATH` wins over an asset path in `/etc/opencloud/idp.yaml`, so set yours through the variable.
 
 Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. The login page then keeps your logo and background, and its title, footer and favicon go back to OpenCloud's. To go back to the OpenCloud defaults, reset the fields in the app first.
 

@@ -245,7 +245,7 @@ Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and 
 The entrypoint runs as root only long enough to prepare the volumes, then drops to your user:
 
 1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel — so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
-2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
+2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
 3. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
 4. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
@@ -273,13 +273,17 @@ Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template
 - the favicon
 - the background of the login page
 
+In the web UI, the name appears in the browser tab and the slogan on public link pages and the sign-out page. On the login page, the name goes into the tab title, and name and slogan replace OpenCloud's in the footer. With a name and no slogan, the footer shows only the name. The login page also shows your logo and favicon.
+
 Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities. One that would freeze the browser, such as masks nested in masks or references that loop back on themselves, is refused.
 
-The login page learns only at container start whether there is a custom background. So adding the first background, or removing it again, needs one container restart, and the app shows a note when that is due. Everything else shows up as soon as you save, including a swap from one background to another.
+To upload an image, click its preview in the app. The menu next to its heading also resets it to the OpenCloud default. Saved changes need no restart: the app updates the page you have open, and every other page, the login page included, picks them up on its next load. Only switching `BRANDING_APP` on or off needs a container restart.
 
-Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. To go back to the OpenCloud defaults, reset the fields in the app first.
+If you set `IDP_ASSET_PATH` yourself, the wrapper leaves it alone, and the app does not change the login page's title, footer or favicon. The page still shows your logo and background, but it learns only at container start whether there is a background, so adding the first one or removing it again needs a restart.
 
-Before you go back to an image without the app, set `BRANDING_APP=false` and start the container once so it removes the app and the managed `proxy.yaml`. An older image leaves both behind: **Branding** stays in the app menu, and its page cannot load. Your name, slogan, logos and favicon carry over, but the login background does not. If you already switched, delete `/var/lib/opencloud/web/assets/apps/branding` by hand, and `/etc/opencloud/proxy.yaml` too if it starts with `# managed by the opencloud Unraid wrapper`.
+Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. The login page then keeps your logo and background, and its title, footer and favicon go back to OpenCloud's. To go back to the OpenCloud defaults, reset the fields in the app first.
+
+Before you go back to an image without the app, set `BRANDING_APP=false` and start the container once so it removes the app and the managed `proxy.yaml`. An older image leaves both behind: **Branding** stays in the app menu, and its page cannot load. Your name, slogan, logos and favicon carry over to the web UI, but the login page keeps only the logo. If you already switched, delete `/var/lib/opencloud/web/assets/apps/branding` by hand, and `/etc/opencloud/proxy.yaml` too if it starts with `# managed by the opencloud Unraid wrapper`.
 
 The app owns the name, slogan, logo, favicon and the whole `clients.web.themes` list in `/var/lib/opencloud/web/assets/themes/_branding/theme.json`. Other keys in that file, such as `common.urls`, stay as they are. From the first start with the app on, the wrapper rewrites the app's keys from its settings at every start, even with `BRANDING_APP=false`. Hand edits to those keys are replaced, and so is anything OpenCloud's own `/branding/logo` endpoint writes there. A hand-made themes list with custom colours does not survive either. On that first start, a `theme.json` that already sets any of these keys is copied to `/var/lib/opencloud/branding/theme.json.before-branding-<time>`, and the app takes over its name and slogan.
 
@@ -304,7 +308,7 @@ additional_policies:
         unprotected: true
 ```
 
-The proxy only uses the route from the `default` policy; anywhere else the app could not load. The route also needs `unprotected: true`, or the login page could not load the background. When either is missing, the app stays off and the log says why. `unprotected` only skips the proxy's sign-in check, and the service still asks OpenCloud about every change.
+The proxy only uses the route from the `default` policy; anywhere else the app could not load. The route also needs `unprotected: true`, because the login page loads the branding through it before anyone has signed in. When either is missing, the app stays off and the log says why. `unprotected` only skips the proxy's sign-in check, and the service still asks OpenCloud about every change.
 
 The service finds OpenCloud's port through `PROXY_HTTP_ADDR`. To move OpenCloud to another port, set it there, not with `http.addr` in a `proxy.yaml`.
 
@@ -418,6 +422,7 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 │  │   ↓ one-time data heal (sentinel-guarded)              │  │
 │  │   ↓ BRANDING_APP: extension + proxy route              │  │
 │  │   ↓ brandingd -regenerate  (if a branding is saved)    │  │
+│  │   ↓ BRANDING_APP: IDP_ASSET_PATH  (login page copy)    │  │
 │  │   ↓ BRANDING_APP: brandingd on 127.0.0.1:9299 &        │  │
 │  │   ↓ gosu PUID:PGID  opencloud init  (|| true)          │  │
 │  │   ↓ print "OPENCLOUD IS READY" banner                  │  │
@@ -427,6 +432,7 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 │                    brandingd      ← Go build stage           │
 │                    web extension  ← Node build stage         │
 │                    base theme     ← download from GitHub     │
+│                    login page     ← the OpenCloud binary     │
 └──────────────────────────────────────────────────────────────┘
 ```
 

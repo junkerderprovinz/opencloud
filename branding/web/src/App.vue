@@ -41,7 +41,7 @@
         <p
           v-if="image.kind === 'background' && backgroundNeedsRestart(state)"
           class="ext:text-sm"
-          v-text="$gettext('Restart the container once to apply the login background change.')"
+          v-text="restartNote"
         />
       </image-section>
     </div>
@@ -66,6 +66,8 @@ const branding = useBranding(brandingApi(useClientService().httpAuthenticated), 
 const { state, name, slogan, busy, textChanged } = branding
 const loadFailure = ref<Failure>()
 
+const restartNote = $gettext('Restart the container once to apply the login background change.')
+
 const images: ImageSlot[] = [
   { kind: 'logo', field: 'logo', label: $gettext('Logo') },
   { kind: 'logo-dark', field: 'logoDark', label: $gettext('Logo for dark mode') },
@@ -76,7 +78,11 @@ const images: ImageSlot[] = [
 async function report(change: Promise<boolean>, done: string, failed: string, kind?: ImageKind) {
   try {
     const reloaded = await change
-    showMessage({ title: done, ...(!reloaded && { desc: $gettext('Reload the page to see the change.') }) })
+    const notes = [
+      !reloaded && $gettext('Reload the page to see the change.'),
+      kind === 'background' && backgroundNeedsRestart(state.value) && restartNote
+    ].filter(Boolean)
+    showMessage({ title: done, ...(notes.length > 0 && { desc: notes.join(' ') }) })
   } catch (e) {
     console.error(e)
     showErrorMessage({ title: failed, desc: failureText($gettext, failureOf(e), kind), errors: [e] })
@@ -98,7 +104,8 @@ const reset = (image: ImageSlot) =>
   report(
     branding.clearImage(image.kind),
     $gettext('%{image} reset to default', { image: image.label }),
-    $gettext('%{image} could not be reset', { image: image.label })
+    $gettext('%{image} could not be reset', { image: image.label }),
+    image.kind
   )
 
 onMounted(async () => {

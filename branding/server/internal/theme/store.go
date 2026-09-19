@@ -18,7 +18,9 @@ import (
 )
 
 // State is what an admin has set. Image fields hold file names inside the
-// _branding folder; empty means the OpenCloud default.
+// _branding folder; empty means the OpenCloud default. LoginTheme is the
+// sign-in card's look: "" for OpenCloud's light card, "dark", or "auto" to
+// follow the browser.
 type State struct {
 	Name       string `json:"name"`
 	Slogan     string `json:"slogan"`
@@ -26,6 +28,7 @@ type State struct {
 	LogoDark   string `json:"logoDark"`
 	Favicon    string `json:"favicon"`
 	Background string `json:"background"`
+	LoginTheme string `json:"loginTheme"`
 }
 
 const (
@@ -33,8 +36,15 @@ const (
 	MaxSloganRunes = 120
 )
 
-// ErrTooLong is returned when the name or slogan exceeds its limit.
-var ErrTooLong = errors.New("theme: text too long")
+var (
+	// ErrTooLong is returned when the name or slogan exceeds its limit.
+	ErrTooLong = errors.New("theme: text too long")
+	// ErrUnknownLoginTheme is returned for a login theme other than "",
+	// "dark" and "auto".
+	ErrUnknownLoginTheme = errors.New("theme: unknown login theme")
+)
+
+var loginThemes = map[string]bool{"": true, "dark": true, "auto": true}
 
 var assetName = regexp.MustCompile(`^(logo|logo-dark|favicon|background)-[0-9a-f]{12}\.(png|jpg|gif|webp|svg)$`)
 
@@ -78,6 +88,18 @@ func (s *Store) SetText(name, slogan string) (State, error) {
 	}
 	return s.update(func(st *State) error {
 		st.Name, st.Slogan = name, slogan
+		return nil
+	})
+}
+
+// SetLoginTheme saves the look of the sign-in card. It is read by the sign-in
+// page only and leaves the theme overlay as it is.
+func (s *Store) SetLoginTheme(theme string) (State, error) {
+	if !loginThemes[theme] {
+		return State{}, ErrUnknownLoginTheme
+	}
+	return s.update(func(st *State) error {
+		st.LoginTheme = theme
 		return nil
 	})
 }
@@ -138,6 +160,10 @@ func (s *Store) load() (st State, missing bool, err error) {
 			problems = append(problems, fmt.Sprintf("theme: %s image %s is missing from %s, ignoring it", k, *name, s.AssetsDir))
 			*name = ""
 		}
+	}
+	if !loginThemes[st.LoginTheme] {
+		problems = append(problems, fmt.Sprintf("theme: %s: ignoring unknown login theme %q", s.StateFile, st.LoginTheme))
+		st.LoginTheme = ""
 	}
 	// Every view of the sign-in page loads the state, so a problem is logged
 	// when it appears and not again until it has gone away.

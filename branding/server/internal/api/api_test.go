@@ -111,7 +111,7 @@ func loginJSON(t *testing.T, h http.Handler) string {
 
 func TestLoginDataFollowsTheSavedState(t *testing.T) {
 	_, h := newServer(t, nil)
-	if got, want := loginJSON(t, h), `{"name":"","slogan":"","background":"","favicon":""}`; got != want {
+	if got, want := loginJSON(t, h), `{"name":"","slogan":"","background":"","favicon":"","theme":""}`; got != want {
 		t.Errorf("nothing saved: %s, want %s", got, want)
 	}
 	for _, r := range []struct {
@@ -122,6 +122,7 @@ func TestLoginDataFollowsTheSavedState(t *testing.T) {
 		{"/brandingsvc/api/image/background", pngBytes},
 		{"/brandingsvc/api/image/favicon", append(append([]byte{}, pngBytes...), 'f')},
 		{"/brandingsvc/api/image/logo", append(append([]byte{}, pngBytes...), 'l')},
+		{"/brandingsvc/api/login-theme", []byte(`{"loginTheme":"auto"}`)},
 	} {
 		if rec := do(h, http.MethodPut, r.path, r.body, admin); rec.Code != http.StatusOK {
 			t.Fatalf("PUT %s = %d %s", r.path, rec.Code, rec.Body)
@@ -131,10 +132,54 @@ func TestLoginDataFollowsTheSavedState(t *testing.T) {
 	if err := json.Unmarshal([]byte(loginJSON(t, h)), &got); err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 4 || got["name"] != "Knight Cloud" || got["slogan"] != "Files, forged" ||
+	if len(got) != 5 || got["name"] != "Knight Cloud" || got["slogan"] != "Files, forged" ||
 		!strings.HasPrefix(got["background"], "/themes/_branding/background-") ||
-		!strings.HasPrefix(got["favicon"], "/themes/_branding/favicon-") {
+		!strings.HasPrefix(got["favicon"], "/themes/_branding/favicon-") || got["theme"] != "auto" {
 		t.Errorf("saved: %v", got)
+	}
+}
+
+func TestLoginThemeRoundTrip(t *testing.T) {
+	_, h := newServer(t, nil)
+	for _, want := range []string{"dark", "auto", ""} {
+		rec := do(h, http.MethodPut, "/brandingsvc/api/login-theme", []byte(`{"loginTheme":"`+want+`"}`), admin)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("PUT %q = %d %s", want, rec.Code, rec.Body)
+		}
+		var answer, state map[string]any
+		_ = json.Unmarshal(rec.Body.Bytes(), &answer)
+		_ = json.Unmarshal(do(h, http.MethodGet, "/brandingsvc/api/state", nil, admin).Body.Bytes(), &state)
+		if answer["loginTheme"] != want || state["loginTheme"] != want || len(answer) != len(state) {
+			t.Errorf("PUT %q answered %v, state %v", want, answer, state)
+		}
+		if got := loginJSON(t, h); !strings.Contains(got, `"theme":"`+want+`"`) {
+			t.Errorf("PUT %q: login.json = %s", want, got)
+		}
+	}
+}
+
+func TestLoginThemeRejections(t *testing.T) {
+	_, h := newServer(t, nil)
+	if rec := do(h, http.MethodPut, "/brandingsvc/api/login-theme", []byte(`{"loginTheme":"dark"}`), admin); rec.Code != http.StatusOK {
+		t.Fatalf("dark = %d %s", rec.Code, rec.Body)
+	}
+	for _, body := range []string{
+		`{"loginTheme":"light"}`,
+		`{"loginTheme":"Dark"}`,
+		`{"loginTheme":null}`,
+		`{"loginTheme":1}`,
+		`{"theme":"auto"}`,
+		`{}`,
+		`"dark"`,
+		`{"loginTheme":`,
+		``,
+	} {
+		if rec := do(h, http.MethodPut, "/brandingsvc/api/login-theme", []byte(body), admin); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s = %d, want 400", body, rec.Code)
+		}
+	}
+	if got := loginJSON(t, h); !strings.Contains(got, `"theme":"dark"`) {
+		t.Errorf("a refused body changed the theme: %s", got)
 	}
 }
 
@@ -144,7 +189,7 @@ func TestStateAnswerCarriesTheBrandingOnly(t *testing.T) {
 	if err := json.Unmarshal(do(h, http.MethodGet, "/brandingsvc/api/state", nil, admin).Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	for _, k := range []string{"name", "slogan", "logo", "logoDark", "favicon", "background"} {
+	for _, k := range []string{"name", "slogan", "logo", "logoDark", "favicon", "background", "loginTheme"} {
 		if _, ok := got[k]; !ok {
 			t.Errorf("state lacks %s", k)
 		}
@@ -172,6 +217,7 @@ func TestRefusals(t *testing.T) {
 		{http.MethodPut, "/brandingsvc/api/text", []byte(`{"name":"Knight Cloud"}`)},
 		{http.MethodPut, "/brandingsvc/api/image/logo", pngBytes},
 		{http.MethodDelete, "/brandingsvc/api/image/logo", nil},
+		{http.MethodPut, "/brandingsvc/api/login-theme", []byte(`{"loginTheme":"dark"}`)},
 	}
 	cases := []struct {
 		name    string

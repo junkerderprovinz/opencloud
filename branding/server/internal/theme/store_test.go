@@ -100,6 +100,58 @@ func TestStateFileLayout(t *testing.T) {
 	}
 }
 
+func TestLoginThemeIsSavedOutsideTheOverlay(t *testing.T) {
+	s := newStore(t)
+	for _, want := range []string{"dark", "auto", ""} {
+		st, err := s.SetLoginTheme(want)
+		if err != nil || st.LoginTheme != want {
+			t.Fatalf("SetLoginTheme(%q) = %+v, %v", want, st, err)
+		}
+		fresh := &Store{AssetsDir: s.AssetsDir, StateFile: s.StateFile, Base: s.Base}
+		if saved, err := fresh.Load(); err != nil || saved.LoginTheme != want {
+			t.Errorf("after SetLoginTheme(%q) the file holds %+v, %v", want, saved, err)
+		}
+		if overlay, _ := os.ReadFile(filepath.Join(s.AssetsDir, "theme.json")); string(overlay) != "{}" {
+			t.Errorf("login theme %q reached the overlay: %s", want, overlay)
+		}
+	}
+}
+
+func TestUnknownLoginThemeIsRefused(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.SetLoginTheme("dark"); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{"light", "Dark", " dark", "sepia"} {
+		if _, err := s.SetLoginTheme(v); !errors.Is(err, ErrUnknownLoginTheme) {
+			t.Errorf("SetLoginTheme(%q) = %v, want ErrUnknownLoginTheme", v, err)
+		}
+	}
+	if st, _ := s.Load(); st.LoginTheme != "dark" {
+		t.Errorf("login theme = %q after refused values, want dark", st.LoginTheme)
+	}
+}
+
+func TestUnknownLoginThemeInStateIsIgnored(t *testing.T) {
+	s := newStore(t)
+	if err := os.MkdirAll(filepath.Dir(s.StateFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.StateFile, []byte(`{"name": "Knight Cloud", "loginTheme": "sepia"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureLog(t)
+	for range 3 {
+		if st, err := s.Load(); err != nil || st != (State{Name: "Knight Cloud"}) {
+			t.Errorf("state = %+v, err %v, want the name and no login theme", st, err)
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], `"sepia"`) {
+		t.Errorf("want one line about the login theme, got %q", logs)
+	}
+}
+
 func TestRegenerateWithoutState(t *testing.T) {
 	s := newStore(t)
 	if err := s.Regenerate(); err != nil {

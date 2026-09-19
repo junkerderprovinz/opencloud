@@ -48,6 +48,7 @@ type view struct {
 	LogoDark   string `json:"logoDark"`
 	Favicon    string `json:"favicon"`
 	Background string `json:"background"`
+	LoginTheme string `json:"loginTheme"`
 }
 
 // loginView is what the sign-in page needs, public before anyone signs in.
@@ -56,6 +57,7 @@ type loginView struct {
 	Slogan     string `json:"slogan"`
 	Background string `json:"background"`
 	Favicon    string `json:"favicon"`
+	Theme      string `json:"theme"`
 }
 
 // Handler returns the routes. A GET pattern also answers HEAD, and method
@@ -70,6 +72,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PUT /brandingsvc/api/text", s.guard(s.putText))
 	mux.HandleFunc("PUT /brandingsvc/api/image/{kind}", s.guard(s.putImage))
 	mux.HandleFunc("DELETE /brandingsvc/api/image/{kind}", s.guard(s.deleteImage))
+	mux.HandleFunc("PUT /brandingsvc/api/login-theme", s.guard(s.putLoginTheme))
 	return mux
 }
 
@@ -124,6 +127,7 @@ func (s *Server) loginJSON(w http.ResponseWriter, _ *http.Request) {
 		Slogan:     st.Slogan,
 		Background: assetURL(st.Background),
 		Favicon:    assetURL(st.Favicon),
+		Theme:      st.LoginTheme,
 	})
 }
 
@@ -183,6 +187,19 @@ func (s *Server) putText(w http.ResponseWriter, r *http.Request) {
 	s.respond(w, st, err)
 }
 
+func (s *Server) putLoginTheme(w http.ResponseWriter, r *http.Request) {
+	// A body without the field would otherwise reset the card to light.
+	var body struct {
+		LoginTheme *string `json:"loginTheme"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096)).Decode(&body); err != nil || body.LoginTheme == nil {
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+	st, err := s.Store.SetLoginTheme(*body.LoginTheme)
+	s.respond(w, st, err)
+}
+
 func (s *Server) putImage(w http.ResponseWriter, r *http.Request) {
 	kind, ok := imagefmt.ParseKind(r.PathValue("kind"))
 	if !ok {
@@ -236,6 +253,9 @@ func (s *Server) respond(w http.ResponseWriter, st theme.State, err error) {
 	case errors.Is(err, theme.ErrTooLong):
 		http.Error(w, "name or slogan too long", http.StatusBadRequest)
 		return
+	case errors.Is(err, theme.ErrUnknownLoginTheme):
+		http.Error(w, "unknown login theme", http.StatusBadRequest)
+		return
 	case err != nil:
 		log.Printf("brandingd: %v", err)
 		http.Error(w, "saving failed", http.StatusInternalServerError)
@@ -250,6 +270,7 @@ func (s *Server) respond(w http.ResponseWriter, st theme.State, err error) {
 		LogoDark:   assetURL(st.LogoDark),
 		Favicon:    assetURL(st.Favicon),
 		Background: assetURL(st.Background),
+		LoginTheme: st.LoginTheme,
 	})
 }
 

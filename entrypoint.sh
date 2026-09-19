@@ -288,10 +288,16 @@ if [ -f "${BRANDING_STATE}" ]; then
 fi
 
 if [ "${_branding}" = "true" ]; then
-    _bg_active="false"
-    if [ -n "${_bg_file}" ]; then
-        export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
-        _bg_active="true"
+    # A file under IDP_ASSET_PATH replaces the IDP's embedded one. The image's
+    # sign-in page loads login.js, which applies the saved branding on every
+    # load, so IDP_LOGIN_BACKGROUND_URL stays unset.
+    if [ -z "${IDP_ASSET_PATH:-}" ]; then
+        export IDP_ASSET_PATH="${BRANDING_SHARE}/idp"
+    else
+        echo "[entrypoint] IDP_ASSET_PATH is set, so the login page keeps OpenCloud's texts and shows a new login background only after a restart"
+        if [ -n "${_bg_file}" ]; then
+            export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
+        fi
     fi
     # OpenCloud reads PROXY_TLS with strconv.ParseBool, so these all mean false.
     case "${PROXY_TLS}" in
@@ -303,7 +309,6 @@ if [ "${_branding}" = "true" ]; then
     # shellcheck disable=SC2086
     BRANDING_OPENCLOUD_URL="${_scheme}://127.0.0.1:${_proxy_addr##*:}" \
     BRANDING_DATA_DIR="${DATA_DIR}" \
-    BRANDING_LOGIN_BACKGROUND_ACTIVE="${_bg_active}" \
         ${DROP} sh -c 'while :; do
             /usr/local/bin/brandingd || echo "[entrypoint] brandingd exited with $?, restarting in 5s"
             sleep 5

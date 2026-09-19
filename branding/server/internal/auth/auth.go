@@ -45,10 +45,7 @@ func (c Checker) Check(ctx context.Context, authorization string) error {
 	if me.ID == "" {
 		return ErrForbidden
 	}
-	body, err := json.Marshal(map[string]string{"account_uuid": me.ID})
-	if err != nil {
-		return fmt.Errorf("%w: %v", ErrForbidden, err)
-	}
+	body, _ := json.Marshal(map[string]string{"account_uuid": me.ID})
 	var perms struct {
 		Permissions []string `json:"permissions"`
 	}

@@ -21,8 +21,8 @@ jobs:
         with:
           dockerfile: Dockerfile
           # The Dockerfile carries inline `hadolint ignore=` for DL3006 on
-          # `FROM ${BASE}` and DL3002 on the `USER root` that the entrypoint
-          # drops from via gosu.
+          # `FROM ${BASE}` and DL3002 on the `USER root` that the entrypoint drops
+          # from via gosu.
           failure-threshold: warning
 
   shellcheck:

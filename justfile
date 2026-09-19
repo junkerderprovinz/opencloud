@@ -1,8 +1,7 @@
-# justfile for the OpenCloud Unraid wrapper image.
-# `just lint` runs the checks of lint.yml locally, with the Go tests run without
-# -race, which needs cgo. `just smoke` runs only the base boot gate of
-# build.yml, not the branding smoke. Run `just --list` to see everything.
-# POSIX sh recipes.
+# OpenCloud for Unraid (wrapper image).
+# `just lint` runs the checks of lint.yml, with the Go tests run without -race,
+# which needs cgo. `just smoke` runs only the base boot gate of build.yml, not
+# the branding smoke. Run `just --list` to see everything. POSIX sh recipes.
 
 set shell := ["sh", "-euc"]
 
@@ -13,7 +12,7 @@ IMAGE := "opencloud:dev"
 default:
     @just --list
 
-# Build the :production channel (the default BASE from the Dockerfile).
+# Build the :production channel (default base pin from the Dockerfile).
 build:
     docker build -t {{IMAGE}} .
 
@@ -29,7 +28,7 @@ build-rolling:
 build-multi:
     docker buildx build --platform linux/amd64,linux/arm64 -t {{IMAGE}} --load .
 
-# Assert gosu/opencloud/entrypoint are present, then boot and wait for the banner.
+# The CI smoke gate: check gosu, opencloud and the entrypoint, then boot and wait for the banner.
 smoke: build
     #!/usr/bin/env sh
     set -eu
@@ -59,7 +58,7 @@ run:
         -e IDM_ADMIN_PASSWORD=changeme -e OC_URL=https://localhost:9200 -e OC_INSECURE=true \
         -v "$PWD/.dev-config:/etc/opencloud" -v "$PWD/.dev-data:/var/lib/opencloud" {{IMAGE}}
 
-# The checks of lint.yml.
+# All lint checks, as in lint.yml.
 lint: hadolint shellcheck test-branding build-branding-web
 
 # Hadolint the Dockerfile, failing on warnings like CI.
@@ -78,7 +77,7 @@ test-branding:
 build-branding-web:
     cd branding/web && pnpm install --frozen-lockfile && pnpm check:types && pnpm test:unit --run && pnpm build && ! grep -rqE "@opencloud-eu/web-client/ox" src tests
 
-# Regenerate the README banners (Node + resvg + opentype.js, global installs).
+# Regenerate the README banners (Node, resvg and opentype.js, global installs).
 banner:
     node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
 

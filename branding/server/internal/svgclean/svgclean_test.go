@@ -179,6 +179,83 @@ func TestIgnoresContentAfterRoot(t *testing.T) {
 	}
 }
 
+// chain builds levels of mask-like elements, each holding ten rects that
+// refer to the next level, and one rect that refers to the first.
+func chain(levels int, element string, ref func(id string) string) string {
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg"><defs>`)
+	for i := 1; i <= levels; i++ {
+		fmt.Fprintf(&b, `<%s id="m%d">`, element, i)
+		for range 10 {
+			fmt.Fprintf(&b, `<rect fill="white" opacity=".9" %s/>`, ref(fmt.Sprintf("m%d", i+1)))
+		}
+		fmt.Fprintf(&b, `</%s>`, element)
+	}
+	fmt.Fprintf(&b, `</defs><rect width="10" height="10" %s/></svg>`, ref("m1"))
+	return b.String()
+}
+
+func maskAttr(id string) string  { return `mask="url(#` + id + `)"` }
+func maskStyle(id string) string { return `style="mask:url(#` + id + `)"` }
+func clipAttr(id string) string  { return `clip-path="url(#` + id + `)"` }
+
+func TestRejectsCostlyReferenceChains(t *testing.T) {
+	var uses strings.Builder
+	uses.WriteString(`<svg xmlns="http://www.w3.org/2000/svg"><g id="t">`)
+	uses.WriteString(strings.Repeat(`<rect width="1" height="1"/>`, 1000))
+	uses.WriteString(`</g>`)
+	uses.WriteString(strings.Repeat(`<use href="#t"/>`, 256))
+	uses.WriteString(`</svg>`)
+
+	cases := map[string]string{
+		"4 masks":           chain(4, "mask", maskAttr),
+		"5 masks":           chain(5, "mask", maskAttr),
+		"4 masks in style":  chain(4, "mask", maskStyle),
+		"5 masks in style":  chain(5, "mask", maskStyle),
+		"5 clip paths":      chain(5, "clipPath", clipAttr),
+		"256 uses of 1000":  uses.String(),
+		"100001 empty <g/>": `<svg xmlns="http://www.w3.org/2000/svg">` + strings.Repeat(`<g/>`, 100001) + `</svg>`,
+	}
+	for name, in := range cases {
+		if _, err := Sanitize(strings.NewReader(in)); !errors.Is(err, ErrTooComplex) {
+			t.Errorf("%s: want ErrTooComplex, got %v", name, err)
+		}
+	}
+}
+
+func TestAcceptsShortMaskChain(t *testing.T) {
+	mustClean(t, chain(3, "mask", maskAttr))
+}
+
+func TestKeepsMaskClipPathAndGradient(t *testing.T) {
+	in := `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">` +
+		`<defs><linearGradient id="g"><stop offset="0" stop-color="#00677f"></stop><stop offset="1" stop-color="#5cd5fb"></stop></linearGradient>` +
+		`<mask id="m"><rect width="64" height="64" fill="white"></rect><circle cx="32" cy="32" r="12" fill="black"></circle></mask>` +
+		`<clipPath id="c"><circle cx="32" cy="32" r="30"></circle></clipPath></defs>` +
+		`<g clip-path="url(#c)"><rect width="64" height="64" fill="url(#g)" mask="url(#m)"></rect></g></svg>`
+	if out := mustClean(t, in); out != in {
+		t.Errorf("logo changed:\n got %s\nwant %s", out, in)
+	}
+}
+
+func TestDropsReferencesToIdsABrowserRewrites(t *testing.T) {
+	out := mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><mask id="m1"><rect/></mask><path id="p1" d="M0 0"/>`+
+		`<rect mask="url(#m&#10;1)"/><rect style="mask:url('#m%31')"/><use href="#p%31"/><rect fill="url(#m1)"/></svg>`)
+	for _, bad := range []string{`url(#m&#xA;1)`, `%31`} {
+		if strings.Contains(out, bad) {
+			t.Errorf("%q survived: %s", bad, out)
+		}
+	}
+	if !strings.Contains(out, `fill="url(#m1)"`) {
+		t.Errorf("plain reference dropped: %s", out)
+	}
+}
+
+func TestSelfReferencingMasksTerminate(t *testing.T) {
+	mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><mask id="m" mask="url(#m)"><rect mask="url(#m)"/></mask><rect mask="url(#m)"/></svg>`)
+	mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><mask id="a"><rect mask="url(#b)"/></mask><mask id="b"><rect style="mask:url(#a)"/></mask><rect mask="url(#a)"/></svg>`)
+}
+
 func TestRejectsExcessiveNesting(t *testing.T) {
 	var b strings.Builder
 	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg">`)

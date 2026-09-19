@@ -19,10 +19,22 @@ const (
 
 	maxDepth = 256 // element nesting limit, counting dropped subtrees
 	maxUse   = 256 // <use> elements kept in the output, in document order
+
+	// maxCost bounds the elements a browser draws once every reference is
+	// expanded. Four nested masks of ten rects each come to about 260000 and
+	// block Chrome for seconds on every page that shows the logo.
+	maxCost = 100000
+	// layerCost is added for each reference to a mask or clip path, which
+	// the browser draws into an offscreen layer of its own.
+	layerCost = 100
 )
 
 // ErrNotSVG is returned when the document root is not an <svg> element.
 var ErrNotSVG = errors.New("svgclean: root element is not svg")
+
+// ErrTooComplex is returned for a drawing whose elements and references
+// would keep a browser busy for too long on every page that shows it.
+var ErrTooComplex = errors.New("svgclean: drawing too complex")
 
 var errTooDeep = errors.New("svgclean: nesting too deep")
 
@@ -64,14 +76,19 @@ var allowedFuncs = map[string]bool{
 	"skewx": true, "skewy": true,
 }
 
+// References may only name plain ids. A browser strips tabs and newlines
+// from a URL and decodes %-escapes in its fragment, so any other id could
+// resolve to an element the cost count never sees.
 var (
 	funcCallRe = regexp.MustCompile(`(?i)([A-Za-z_-][A-Za-z0-9_-]*)\s*\(`)
-	localURLRe = regexp.MustCompile(`(?i)^url\s*\(\s*['"]?#`)
+	localURLRe = regexp.MustCompile(`(?i)^url\s*\(\s*(#[\w.:-]+|"#[\w.:-]+"|'#[\w.:-]+')\s*\)`)
+	urlRefRe   = regexp.MustCompile(`(?i)url\s*\(\s*["']?#([\w.:-]+)`)
+	localRefRe = regexp.MustCompile(`^#[\w.:-]+$`)
 	rasterData = regexp.MustCompile(`^data:image/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=\s]*$`)
 )
 
 // node is a kept element, still holding its children in document order so
-// <use> can be resolved against them before anything is written out.
+// references can be resolved and counted before anything is written out.
 type node struct {
 	name  string
 	attrs []attr
@@ -109,6 +126,9 @@ func Sanitize(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	pruneUses(root)
+	if drawCost(root) > maxCost {
+		return nil, ErrTooComplex
+	}
 	var out bytes.Buffer
 	writeNode(&out, root, true)
 	return out.Bytes(), nil
@@ -122,6 +142,7 @@ func parseTree(r io.Reader) (*node, error) {
 	var stack []*node // kept ancestors, root first
 	skip := 0         // depth inside a dropped subtree
 	depth := 0        // raw element depth, including dropped subtrees
+	elements := 0     // every start element, kept or dropped
 	sawRoot := false
 
 	for {
@@ -134,6 +155,10 @@ func parseTree(r io.Reader) (*node, error) {
 		}
 		switch t := tok.(type) {
 		case xml.StartElement:
+			// Stopping here keeps a huge upload from growing a huge tree.
+			if elements++; elements > maxCost {
+				return nil, ErrTooComplex
+			}
 			depth++
 			if depth > maxDepth {
 				return nil, errTooDeep
@@ -217,7 +242,7 @@ func cleanAttr(element string, a xml.Attr) (string, string, bool) {
 		return "", "", false
 	}
 	if local == "href" {
-		if !strings.HasPrefix(value, "#") && !(element == "image" && rasterData.MatchString(value)) {
+		if !localRefRe.MatchString(value) && !(element == "image" && rasterData.MatchString(value)) {
 			return "", "", false
 		}
 		if xlink {
@@ -323,6 +348,62 @@ func useAllowed(n *node, byID map[string]*node, hasUse map[*node]bool, kept *int
 	}
 	*kept++
 	return true
+}
+
+// drawCost counts the elements a browser draws for root with every href and
+// url() reference expanded, plus layerCost per mask or clip path reference.
+// It saturates just above maxCost.
+func drawCost(root *node) int {
+	c := coster{byID: map[string]*node{}, memo: map[*node]int{}}
+	indexIDs(root, c.byID)
+	return c.cost(root)
+}
+
+type coster struct {
+	byID map[string]*node
+	memo map[*node]int // -1 while a node is being counted
+}
+
+func (c *coster) cost(n *node) int {
+	if v, ok := c.memo[n]; ok {
+		return v
+	}
+	c.memo[n] = -1
+	total := 1
+	for _, k := range n.kids {
+		if k.elem != nil {
+			total = addCost(total, c.cost(k.elem))
+		}
+	}
+	for _, a := range n.attrs {
+		var ids []string
+		if a.name == "href" || a.name == "xlink:href" {
+			if strings.HasPrefix(a.value, "#") {
+				ids = append(ids, a.value[1:])
+			}
+		} else {
+			for _, m := range urlRefRe.FindAllStringSubmatch(a.value, -1) {
+				ids = append(ids, m[1])
+			}
+		}
+		for _, id := range ids {
+			target, ok := c.byID[id]
+			// Browsers drop a reference that loops back, so it draws nothing.
+			if !ok || c.memo[target] < 0 {
+				continue
+			}
+			total = addCost(total, c.cost(target))
+			if target.name == "mask" || target.name == "clipPath" {
+				total = addCost(total, layerCost)
+			}
+		}
+	}
+	c.memo[n] = total
+	return total
+}
+
+func addCost(a, b int) int {
+	return min(a+b, maxCost+1)
 }
 
 func writeNode(out *bytes.Buffer, n *node, root bool) {

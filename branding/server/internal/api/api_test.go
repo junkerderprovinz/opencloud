@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -163,6 +164,21 @@ func TestSVGIsStoredSanitised(t *testing.T) {
 	}
 	if bytes.Contains(stored, []byte("alert")) || !bytes.Contains(stored, []byte("<rect")) {
 		t.Errorf("stored svg = %s", stored)
+	}
+}
+
+func TestSVGTooCostlyToRenderIsRefused(t *testing.T) {
+	_, h := newServer(t, nil)
+	var b strings.Builder
+	b.WriteString(`<svg xmlns="http://www.w3.org/2000/svg">`)
+	for i := 1; i <= 5; i++ {
+		fmt.Fprintf(&b, `<mask id="m%d">%s</mask>`, i, strings.Repeat(fmt.Sprintf(`<rect fill="white" opacity=".9" mask="url(#m%d)"/>`, i+1), 10))
+	}
+	b.WriteString(`<rect width="10" height="10" mask="url(#m1)"/></svg>`)
+
+	rec := do(h, http.MethodPut, "/brandingsvc/api/image/logo", []byte(b.String()), admin)
+	if rec.Code != http.StatusUnsupportedMediaType || strings.TrimSpace(rec.Body.String()) != "SVG too complex" {
+		t.Errorf("mask chain = %d %q, want 415 SVG too complex", rec.Code, rec.Body)
 	}
 }
 

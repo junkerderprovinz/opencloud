@@ -148,7 +148,12 @@ func (s *Server) putImage(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unsupported image format", http.StatusUnsupportedMediaType)
 			return
 		}
-		if data, err = svgclean.Sanitize(bytes.NewReader(data)); err != nil {
+		data, err = svgclean.Sanitize(bytes.NewReader(data))
+		switch {
+		case errors.Is(err, svgclean.ErrTooComplex):
+			http.Error(w, "SVG too complex", http.StatusUnsupportedMediaType)
+			return
+		case err != nil:
 			http.Error(w, "invalid SVG", http.StatusUnsupportedMediaType)
 			return
 		}

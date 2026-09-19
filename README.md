@@ -426,6 +426,7 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 │      multi-stage:  static gosu    ← tianon/gosu              │
 │                    brandingd      ← Go build stage           │
 │                    web extension  ← Node build stage         │
+│                    base theme     ← download from GitHub     │
 └──────────────────────────────────────────────────────────────┘
 ```
 

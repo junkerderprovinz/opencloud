@@ -233,6 +233,92 @@ func captureLog(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
+func writeOverlay(t *testing.T, s *Store, content string) {
+	t.Helper()
+	if err := os.MkdirAll(s.AssetsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.AssetsDir, "theme.json"), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func overlayBackups(t *testing.T, s *Store) []string {
+	t.Helper()
+	backups, err := filepath.Glob(filepath.Join(filepath.Dir(s.StateFile), "theme.json.before-branding-*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return backups
+}
+
+func TestFirstStartKeepsHandSetOverlay(t *testing.T) {
+	s := newStore(t)
+	handSet := `{"common":{"name":" Hand Cloud ","slogan":"Made by hand","logo":"themes/_branding/mylogo.png","urls":{"imprint":"https://example.org/imprint"}},` +
+		`"clients":{"web":{"defaults":{"logo":"themes/_branding/mylogo.png","favicon":"themes/_branding/fav.ico"},"themes":[{"isDark":true,"label":"Mine"}]}}}`
+	writeOverlay(t, s, handSet)
+	logs := captureLog(t)
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+
+	backups := overlayBackups(t, s)
+	if len(backups) != 1 {
+		t.Fatalf("want one overlay backup, found %v", backups)
+	}
+	if b, _ := os.ReadFile(backups[0]); string(b) != handSet {
+		t.Errorf("backup = %s, want the original bytes", b)
+	}
+	if !strings.Contains(logs.String(), backups[0]) {
+		t.Errorf("backup not named in the log: %q", logs)
+	}
+	if st, err := s.Load(); err != nil || st != (State{Name: "Hand Cloud", Slogan: "Made by hand"}) {
+		t.Errorf("state = %+v, err %v", st, err)
+	}
+	overlay, _ := os.ReadFile(filepath.Join(s.AssetsDir, "theme.json"))
+	if want := `{"common":{"name":"Hand Cloud","slogan":"Made by hand","urls":{"imprint":"https://example.org/imprint"}}}`; string(overlay) != want {
+		t.Errorf("overlay = %s, want %s", overlay, want)
+	}
+
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+	if backups := overlayBackups(t, s); len(backups) != 1 {
+		t.Errorf("second start made another backup: %v", backups)
+	}
+}
+
+func TestFirstStartSkipsTextOutOfLimits(t *testing.T) {
+	s := newStore(t)
+	writeOverlay(t, s, `{"common":{"name":"`+strings.Repeat("a", MaxNameRunes+1)+`","slogan":42}}`)
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Load(); st != (State{}) {
+		t.Errorf("state = %+v, want empty", st)
+	}
+	if backups := overlayBackups(t, s); len(backups) != 1 {
+		t.Errorf("want one overlay backup, found %v", backups)
+	}
+}
+
+func TestSavedStateSkipsOverlayBackup(t *testing.T) {
+	s := newStore(t)
+	if _, err := s.SetText("Knight Cloud", ""); err != nil {
+		t.Fatal(err)
+	}
+	writeOverlay(t, s, `{"common":{"name":"Hand Cloud","logo":"themes/_branding/mylogo.png"}}`)
+	if err := s.Regenerate(); err != nil {
+		t.Fatal(err)
+	}
+	if backups := overlayBackups(t, s); len(backups) != 0 {
+		t.Errorf("backup made although state.json exists: %v", backups)
+	}
+	if st, _ := s.Load(); st.Name != "Knight Cloud" {
+		t.Errorf("state = %+v", st)
+	}
+}
+
 func TestMovedAsideStateCanBePutBack(t *testing.T) {
 	s := newStore(t)
 	if _, err := s.SetImage(imagefmt.Logo, "png", []byte("logo")); err != nil {

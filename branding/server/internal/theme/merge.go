@@ -15,8 +15,9 @@ type KV = map[string]any
 // AssetPrefix is how theme.json refers to files in the _branding folder.
 const AssetPrefix = "themes/_branding/"
 
-// ownedPaths are the overlay keys this service writes. Other keys, such as
-// ones OpenCloud's own /branding/logo endpoint may have added, stay as they are.
+// ownedPaths are the overlay keys this service writes. They are replaced on
+// every write, including values OpenCloud's own /branding/logo endpoint put
+// there; all other keys stay.
 var ownedPaths = [][]string{
 	{"common", "name"},
 	{"common", "slogan"},
@@ -90,6 +91,15 @@ func Merge(overlay, base KV, st State) (KV, error) {
 	}
 	prune(overlay)
 	return overlay, nil
+}
+
+func hasOwnedKeys(overlay KV) bool {
+	for _, p := range ownedPaths {
+		if _, ok := getPath(overlay, p); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // baseThemes returns a deep copy of base's clients.web.themes.

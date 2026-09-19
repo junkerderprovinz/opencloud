@@ -52,7 +52,8 @@ type Store struct {
 func (s *Store) Load() (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.load()
+	st, _, err := s.load()
+	return st, err
 }
 
 // Regenerate rewrites the overlay from the saved state. brandingd calls it on
@@ -61,7 +62,10 @@ func (s *Store) Load() (State, error) {
 func (s *Store) Regenerate() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st, err := s.load()
+	st, missing, err := s.load()
+	if err == nil && missing {
+		err = s.adoptOverlay(&st)
+	}
 	if err != nil {
 		return err
 	}
@@ -106,17 +110,17 @@ func (s *Store) ClearImage(k imagefmt.Kind) (State, error) {
 	})
 }
 
-func (s *Store) load() (State, error) {
-	var st State
+// load returns the saved state and whether there was no state file at all.
+func (s *Store) load() (st State, missing bool, err error) {
 	b, err := os.ReadFile(s.StateFile)
 	if errors.Is(err, os.ErrNotExist) {
-		return st, nil
+		return st, true, nil
 	}
 	if err != nil {
-		return st, err
+		return st, false, err
 	}
 	if err := json.Unmarshal(b, &st); err != nil {
-		return State{}, moveAside(s.StateFile, err)
+		return State{}, false, moveAside(s.StateFile, err)
 	}
 	// The names become file paths, and state.json sits on a volume that other
 	// processes can write.
@@ -126,13 +130,16 @@ func (s *Store) load() (State, error) {
 			*name = ""
 		}
 	}
-	return st, nil
+	return st, false, nil
 }
 
 func (s *Store) update(change func(*State) error) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st, err := s.load()
+	st, missing, err := s.load()
+	if err == nil && missing {
+		err = s.adoptOverlay(&st)
+	}
 	if err != nil {
 		return State{}, err
 	}
@@ -147,6 +154,47 @@ func (s *Store) update(change func(*State) error) (State, error) {
 		log.Printf("theme: removing unused images: %v", err)
 	}
 	return st, nil
+}
+
+// adoptOverlay runs while there is no state file. An overlay that already sets
+// branding keys, by hand or through OpenCloud's /branding/logo, is copied
+// next to the state file before the commit replaces those keys, and its name
+// and slogan are taken over; image keys point at files not named like assets.
+func (s *Store) adoptOverlay(st *State) error {
+	overlayPath := filepath.Join(s.AssetsDir, "theme.json")
+	raw, err := os.ReadFile(overlayPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var overlay KV
+	if json.Unmarshal(raw, &overlay) != nil || !hasOwnedKeys(overlay) {
+		return nil
+	}
+	dir := filepath.Dir(s.StateFile)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	backup := freeName(filepath.Join(dir, fmt.Sprintf("theme.json.before-branding-%d", time.Now().Unix())))
+	if err := writeAtomic(backup, raw); err != nil {
+		return err
+	}
+	for _, f := range []struct {
+		key string
+		max int
+		dst *string
+	}{{"name", MaxNameRunes, &st.Name}, {"slogan", MaxSloganRunes, &st.Slogan}} {
+		v, _ := getPath(overlay, []string{"common", f.key})
+		if text, ok := v.(string); ok {
+			if text = strings.TrimSpace(text); utf8.RuneCountInString(text) <= f.max {
+				*f.dst = text
+			}
+		}
+	}
+	log.Printf("theme: %s had branding keys set by hand, kept a copy at %s; took over name and slogan where valid and replaced the rest", overlayPath, backup)
+	return nil
 }
 
 func (s *Store) commit(st State) error {

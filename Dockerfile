@@ -24,8 +24,8 @@
 # it since 7.3.0. For the newest OpenCloud, and to avoid the sync-abort bug on
 # slow (array or FUSE) storage, run the :rolling channel.
 #
-# Licensing: wrapper scripts MIT; branding/web (the web extension) AGPL-3.0;
-# brandingd MIT; the OpenCloud binary Apache-2.0. See LICENSE / NOTICE.
+# Licensing: this repository (wrapper scripts, brandingd and the web extension)
+# is AGPL-3.0; the OpenCloud binary is Apache-2.0. See LICENSE and NOTICE.
 # =============================================================================
 
 # Floating upstream tags. BASE feeds `FROM ${BASE}`; BASE_ROLLING is a marker CI
@@ -80,6 +80,7 @@ FROM ${BASE}
 # hadolint ignore=DL3002
 USER root
 
+# OCI provenance. Wrapper assets are AGPL-3.0; the bundled OpenCloud binary is Apache-2.0.
 LABEL org.opencontainers.image.title="opencloud (Unraid wrapper)" \
       org.opencontainers.image.description="One-click OpenCloud for Unraid: auto-init, permission heal, PUID/PGID." \
       org.opencontainers.image.source="https://github.com/junkerderprovinz/opencloud" \

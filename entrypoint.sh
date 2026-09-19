@@ -116,8 +116,7 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"
     # OnlyOffice signs with its own JWT rather than Collabora-style proof keys
     [ "${_oc_app_product}" = "OnlyOffice" ] && export COLLABORATION_APP_PROOF_DISABLE="${COLLABORATION_APP_PROOF_DISABLE:-true}"
-    # register the collaboration app as the secure-view handler and expose the
-    # secure-view role (the default role set plus secure-view, from opencloud-compose)
+    # The role list is OpenCloud's default set plus secure-view, as opencloud-compose has it.
     export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
     export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
     # Registering a WOPI app does not add its origin to OpenCloud's own
@@ -222,7 +221,8 @@ if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
 fi
 
 # The target user does the writing, so a symlink planted in a volume cannot
-# make root write outside it. OpenCloud starts even when that fails.
+# make root write outside it. If the install fails, the app stays off and
+# OpenCloud still starts.
 # shellcheck disable=SC2086
 if [ "${_branding}" = "true" ]; then
     # Removing the directory itself drops a symlink instead of following it.
@@ -273,6 +273,10 @@ if [ -f "${BRANDING_STATE}" ]; then
     case "${_bg_file}" in
         *[!a-z0-9.-]*) _bg_file="" ;;
     esac
+    if [ -n "${_bg_file}" ] && [ ! -f "${DATA_DIR}/web/assets/themes/_branding/${_bg_file}" ]; then
+        echo "[entrypoint] WARNING: the saved login background ${_bg_file} is missing, so the login page keeps OpenCloud's own"
+        _bg_file=""
+    fi
 fi
 
 if [ "${_branding}" = "true" ]; then
@@ -281,8 +285,11 @@ if [ "${_branding}" = "true" ]; then
         export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
         _bg_active="true"
     fi
-    _scheme="https"
-    [ "$(printf '%s' "${PROXY_TLS}" | tr '[:upper:]' '[:lower:]')" = "false" ] && _scheme="http"
+    # OpenCloud reads PROXY_TLS with strconv.ParseBool, so these all mean false.
+    case "${PROXY_TLS}" in
+        0 | f | F | false | FALSE | False) _scheme="http" ;;
+        *) _scheme="https" ;;
+    esac
     # brandingd reaches OpenCloud through the proxy, on whatever port it listens.
     _proxy_addr="${PROXY_HTTP_ADDR:-0.0.0.0:9200}"
     # shellcheck disable=SC2086

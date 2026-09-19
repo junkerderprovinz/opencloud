@@ -158,7 +158,7 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 | `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
 | `PROXY_TLS` | `true` | OpenCloud terminates TLS itself on 9200. Set `false` behind a TLS-terminating proxy (see [§6](#6-reverse-proxy)). |
 | `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§10](#10-troubleshooting). |
-| `BRANDING_APP` | `false` | Adds a **Branding** app where admins set the instance name, slogan, logos, favicon and login background. See [§7](#7-branding). |
+| `BRANDING_APP` | `false` | Add a **Branding** app where admins set the instance name, slogan, logos, favicon and login background. See [§7](#7-branding). |
 | `PUID` | `99` | User ID OpenCloud runs as — Unraid's *nobody*. |
 | `PGID` | `100` | Group ID — Unraid's *users*. |
 
@@ -264,20 +264,32 @@ By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificat
 
 ## 7. Branding
 
-Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template) to `true` and restart the container. Accounts with the Admin role then find **Branding** in the app menu. Other accounts do not get the entry, and the service behind it refuses their changes. There an admin can set:
+Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template) to `true` and restart the container. Accounts with the Admin role then find **Branding** in the app menu. Other accounts do not get the entry, and the service behind it refuses their changes. In the app an admin can set:
 
 - the instance name and slogan
-- a logo, plus an optional one for dark mode
+- a logo, plus an optional one for dark mode (without it, dark mode uses the logo)
 - the favicon
 - the background of the login page
 
-Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload and lose anything that could run code.
+Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities, and a very complex one, such as masks nested in masks, is refused because it would freeze the browser.
 
 The login page learns only at container start whether there is a custom background. So adding the first background, or removing it again, needs one container restart, and the app shows a note when that is due. Everything else shows up as soon as you save, including a swap from one background to another.
 
 Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. To go back to the OpenCloud defaults, reset the fields in the app first.
 
-The app talks to its service through the proxy route `/brandingsvc/`, which the wrapper writes to `/etc/opencloud/proxy.yaml`. If you already have your own `proxy.yaml`, the wrapper leaves it alone and turns the app on only if your file carries that route. Without it the app stays off and the log says so. Add this to your file:
+The app owns the name, slogan, logo, favicon and the whole `clients.web.themes` list in `/var/lib/opencloud/web/assets/themes/_branding/theme.json`. Other keys in that file, such as `common.urls`, stay as they are. From the first start with the app on, the wrapper rewrites the app's keys from its settings at every start, even with `BRANDING_APP=false`. Hand edits to those keys are replaced, and so is anything OpenCloud's own `/branding/logo` endpoint writes there. A hand-made themes list with custom colours does not survive either. On that first start, a `theme.json` that already sets any of these keys is copied to `/var/lib/opencloud/branding/theme.json.before-branding-<time>`, and the app takes over its name and slogan.
+
+The app talks to its service through the proxy route `/brandingsvc/`. While the app is on, the wrapper writes that route to `/etc/opencloud/proxy.yaml` at every start, and it deletes the file again when you set `BRANDING_APP=false`. To add routes of your own to that file, delete its first line (the marker comment). The file is then yours, and the wrapper leaves it alone.
+
+With your own `proxy.yaml`, the app turns on only if the file carries the route. Add it as one more item under `routes:` of the `- name: default` entry in your `additional_policies`, indented like the items already there:
+
+```yaml
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+```
+
+If the file has no `additional_policies` key yet, add the whole block below instead. Do not add a second `additional_policies` key: OpenCloud then ignores the whole file, your own routes included.
 
 ```yaml
 additional_policies:
@@ -288,7 +300,9 @@ additional_policies:
         unprotected: true
 ```
 
-The route has to sit in the policy named `default` and keep `unprotected: true`, or the login page cannot load the background. `unprotected` only skips the proxy's sign-in check; the service still asks OpenCloud about every change. The app also works when `PROXY_HTTP_ADDR` moves OpenCloud to another port.
+The proxy only uses the route from the `default` policy; anywhere else the app could not load. The route also needs `unprotected: true`, or the login page could not load the background. When either is missing, the app stays off and the log says why. `unprotected` only skips the proxy's sign-in check, and the service still asks OpenCloud about every change.
+
+The service finds OpenCloud's port through `PROXY_HTTP_ADDR`. To move OpenCloud to another port, set it there, not with `http.addr` in a `proxy.yaml`.
 
 <br>
 
@@ -383,7 +397,7 @@ The wrapper heals ownership on start, but a data set created earlier as a differ
 <details>
 <summary><b>The saved branding is gone</b></summary>
 
-If `/var/lib/opencloud/branding/state.json` cannot be read, the container moves it aside as `state.json.invalid-<time>`, names it in the log and falls back to the OpenCloud defaults. Your images stay. Fix the file, rename it back to `state.json` and restart. Do that before you save anything in the app, because a save deletes every image the new settings do not use.
+If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container moves it aside as `state.json.invalid-<time>`, names it in the log and falls back to the OpenCloud defaults. Your images stay. Fix the file, rename it back to `state.json` and restart. Do that before you save anything in the app, because a save deletes every image the new settings do not use.
 </details>
 
 <br>

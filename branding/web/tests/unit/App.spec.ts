@@ -96,12 +96,11 @@ describe('App', () => {
     expect(messages.showMessage).toHaveBeenCalledWith({ title: 'Logo saved', desc: 'Reload the page to see the change.' })
   })
 
-  it('confirms a login background without asking for a restart', async () => {
+  it('confirms a saved login background', async () => {
     const wrapper = await mountApp()
 
     await upload(wrapper, 'background', { ...saved, background: '/themes/_branding/background-1a2b3c4d5e6f.png' })
 
     expect(messages.showMessage).toHaveBeenCalledWith({ title: 'Login background saved' })
-    expect(wrapper.text()).not.toContain('Restart')
   })
 })

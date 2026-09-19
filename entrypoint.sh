@@ -177,6 +177,7 @@ fi
 # Switching it off removes the editor and keeps the saved branding in effect.
 BRANDING_SHARE="/usr/local/share/opencloud-branding"
 BRANDING_APPS_DIR="${DATA_DIR}/web/assets/apps/branding"
+BRANDING_ASSETS="${DATA_DIR}/web/assets/themes/_branding"
 BRANDING_STATE="${DATA_DIR}/branding/state.json"
 BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
 BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
@@ -226,11 +227,18 @@ fi
 # shellcheck disable=SC2086
 if [ "${_branding}" = "true" ]; then
     # Removing the directory itself drops a symlink instead of following it.
-    if ${DROP} rm -rf "${BRANDING_APPS_DIR}" \
-        && ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${DATA_DIR}/web/assets/themes/_branding" "${DATA_DIR}/branding" \
-        && ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"; then
-        if [ "${_own_proxy}" = "false" ]; then
-            ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
+    if ! { ${DROP} rm -rf "${BRANDING_APPS_DIR}" \
+        && ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${BRANDING_ASSETS}" "${DATA_DIR}/branding" \
+        && ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"; }; then
+        echo "[entrypoint] WARNING: could not install the branding app into ${BRANDING_APPS_DIR} as ${PUID}:${PGID}, so it stays off; if ${DATA_DIR}/web belongs to root, chown -R ${PUID}:${PGID} ${DATA_DIR}/web in the container fixes it"
+        _branding="false"
+    # mkdir -p passes on folders that root created by hand, and brandingd could
+    # not save into those.
+    elif ! ${DROP} test -w "${BRANDING_ASSETS}" || ! ${DROP} test -w "${DATA_DIR}/branding"; then
+        echo "[entrypoint] WARNING: ${BRANDING_ASSETS} or ${DATA_DIR}/branding is not writable for ${PUID}:${PGID}, so the branding app stays off; chown -R ${PUID}:${PGID} ${DATA_DIR}/web ${DATA_DIR}/branding in the container fixes it"
+        _branding="false"
+    elif [ "${_own_proxy}" = "false" ]; then
+        ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
 ${BRANDING_PROXY_MARKER}
 additional_policies:
   - name: default
@@ -239,10 +247,6 @@ additional_policies:
         backend: http://127.0.0.1:9299
         unprotected: true
 EOF
-        fi
-    else
-        echo "[entrypoint] WARNING: could not install the branding app into ${BRANDING_APPS_DIR}, so it stays off"
-        _branding="false"
     fi
 fi
 # shellcheck disable=SC2086
@@ -273,7 +277,7 @@ if [ -f "${BRANDING_STATE}" ]; then
     case "${_bg_file}" in
         *[!a-z0-9.-]*) _bg_file="" ;;
     esac
-    if [ -n "${_bg_file}" ] && [ ! -f "${DATA_DIR}/web/assets/themes/_branding/${_bg_file}" ]; then
+    if [ -n "${_bg_file}" ] && [ ! -f "${BRANDING_ASSETS}/${_bg_file}" ]; then
         echo "[entrypoint] WARNING: the saved login background ${_bg_file} is missing, so the login page keeps OpenCloud's own"
         _bg_file=""
     fi

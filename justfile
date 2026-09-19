@@ -1,4 +1,4 @@
-# justfile - OpenCloud for Unraid (wrapper image)
+# justfile for the OpenCloud Unraid wrapper image.
 # `just lint` runs the checks of lint.yml locally, with the Go tests run without
 # -race, which needs cgo. `just smoke` runs only the base boot gate of
 # build.yml, not the branding smoke. Run `just --list` to see everything.
@@ -13,7 +13,7 @@ IMAGE := "opencloud:dev"
 default:
     @just --list
 
-# Build the :production channel (default base pin from the Dockerfile).
+# Build the :production channel (the default BASE from the Dockerfile).
 build:
     docker build -t {{IMAGE}} .
 
@@ -29,7 +29,7 @@ build-rolling:
 build-multi:
     docker buildx build --platform linux/amd64,linux/arm64 -t {{IMAGE}} --load .
 
-# The CI smoke gate: check gosu, opencloud and the entrypoint, then boot and wait for the banner.
+# Assert gosu/opencloud/entrypoint are present, then boot and wait for the banner.
 smoke: build
     #!/usr/bin/env sh
     set -eu
@@ -58,10 +58,6 @@ run:
         -e IDM_ADMIN_PASSWORD=changeme -e OC_URL=https://localhost:9200 -e OC_INSECURE=true \
         -v "$PWD/.dev-config:/etc/opencloud" -v "$PWD/.dev-data:/var/lib/opencloud" {{IMAGE}}
 
-# ---------------------------------------------------------------------------
-# Lint  (mirrors lint.yml)
-# ---------------------------------------------------------------------------
-
 # The checks of lint.yml.
 lint: hadolint shellcheck test-branding build-branding-web
 
@@ -80,10 +76,6 @@ test-branding:
 # Type check, test and build the web extension; OpenCloud 7.2 lacks web-client/ox.
 build-branding-web:
     cd branding/web && pnpm install --frozen-lockfile && pnpm check:types && pnpm test:unit --run && pnpm build && ! grep -rqE "@opencloud-eu/web-client/ox" src tests
-
-# ---------------------------------------------------------------------------
-# Assets
-# ---------------------------------------------------------------------------
 
 # Regenerate the README banners (Node + resvg + opentype.js, global installs).
 banner:

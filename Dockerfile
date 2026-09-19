@@ -1,12 +1,13 @@
 # syntax=docker/dockerfile:1
-# opencloud: one-click OpenCloud wrapper image for Unraid
+# opencloud: one-click OpenCloud wrapper image for Unraid.
 #
-# A thin wrapper around the official OpenCloud image. That image is Alpine-based
-# and runs its `opencloud` binary directly with no PUID/PGID support, so on a
-# fresh Unraid install (root-owned bind mounts) the first boot fails with
-# "permission denied" writing /etc/opencloud/opencloud.yaml and
-# /var/lib/opencloud/nats, and it never runs the required one-time
-# `opencloud init`. This wrapper fixes both without forking OpenCloud:
+# A thin wrapper around the official OpenCloud image that turns it into a genuine
+# one-click Unraid app. The official image is Alpine-based and runs its
+# `opencloud` binary directly without PUID/PGID support, so on a fresh Unraid
+# install (root-owned bind mounts) the first boot fails with "permission denied"
+# writing /etc/opencloud/opencloud.yaml and /var/lib/opencloud/nats, and it never
+# runs the required one-time `opencloud init`. This wrapper fixes both without
+# forking OpenCloud:
 #   * runs `opencloud init` once (writes the config on first boot, idempotent)
 #   * heals bind-mount ownership so root-created appdata becomes writable
 #   * honours Unraid's PUID / PGID (default 99:100 = nobody:users) and drops
@@ -15,23 +16,25 @@
 # Two channels, selected with --build-arg BASE=...:
 #   :production  ->  opencloudeu/opencloud:latest          (default, BASE below)
 #   :rolling     ->  opencloudeu/opencloud-rolling:latest  (BASE_ROLLING, CI reads it)
-# Both track upstream's floating tag without a version pin; the weekly cron
-# rebuild in build.yml republishes whatever each tag points to.
+# Both track upstream's own floating tag directly, with no version pin and no
+# Renovate PR to merge: the weekly cron rebuild in build.yml resolves whatever
+# each tag points to and republishes. The other own-image repos (Krusader,
+# HandBrake, JDownloader) do the same with the LSIO Selkies base image.
 #
 # The :production line is OpenCloud's slow, stable train and does not carry
 # reva#720 (the incremental-fsync fix for large-folder sync aborts, issue #3027)
-# until OpenCloud cuts a stable release that includes it; the :rolling image has
-# it since 7.3.0. For the newest OpenCloud, and to avoid the sync-abort bug on
-# slow (array or FUSE) storage, run the :rolling channel.
+# until OpenCloud cuts a stable release that includes it. The rolling image has
+# shipped that fix since 7.3.0, so for the newest OpenCloud, and to avoid the
+# sync-abort bug on slow (array/FUSE) storage, run the :rolling channel.
 #
 # Licensing: this repository (wrapper scripts, brandingd and the web extension)
 # is AGPL-3.0; the OpenCloud binary is Apache-2.0. See LICENSE and NOTICE.
-# =============================================================================
 
-# Floating upstream tags. BASE feeds `FROM ${BASE}`; BASE_ROLLING is a marker CI
-# extracts from this file to build the :rolling channel with
-# `--build-arg BASE=<rolling>`, so both tags live in one place. Neither is
-# Renovate-tracked (see renovate.json); the weekly cron rebuild keeps them current.
+# Floating upstream tags. BASE feeds `FROM ${BASE}`; BASE_ROLLING is a marker
+# that CI extracts from this file to build the :rolling channel via
+# `--build-arg BASE=<rolling>`, so both tags stay in one place. Neither is
+# tracked by Renovate (see renovate.json); the weekly cron rebuild keeps them
+# current instead of a merged version-bump PR.
 ARG BASE=opencloudeu/opencloud:latest
 ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 
@@ -74,9 +77,10 @@ RUN pnpm build
 # hadolint ignore=DL3006
 FROM ${BASE}
 
-# The published base image runs as a non-root user (uid 1000). Root is needed so
-# the build can write under /usr/local, and so the entrypoint starts privileged
-# to heal ownership before dropping to PUID:PGID with gosu.
+# The published base image runs as a non-root user (uid 1000). Switching to root
+# before any COPY or RUN lets the build write under /usr/local and lets the
+# entrypoint start privileged to heal ownership before it drops to PUID:PGID
+# with gosu.
 # hadolint ignore=DL3002
 USER root
 

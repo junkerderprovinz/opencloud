@@ -25,10 +25,10 @@ image. Each bundled component retains its upstream license:
   * Tailwind CSS                 MIT
     (in the web extension CSS)   https://github.com/tailwindlabs/tailwindcss
 
-The login page that the branding app serves,
-/usr/local/share/opencloud-branding/idp/identifier/index.html, is OpenCloud's own
-identifier/index.html, copied from the opencloud binary at build time with one
-script tag added. It keeps OpenCloud's Apache-2.0 license.
+While the branding app is on, OpenCloud serves its login page from
+/usr/local/share/opencloud-branding/idp/identifier/index.html. That file is
+OpenCloud's own identifier/index.html, copied from the opencloud binary at build
+time with one script tag added. It keeps OpenCloud's Apache-2.0 license.
 
 Brand artwork
 -------------

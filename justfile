@@ -1,6 +1,8 @@
-# OpenCloud for Unraid (wrapper image).
-# Recipes mirror the CI flows (see .github/workflows/ and the Dockerfile).
-# Run `just --list` to see everything. POSIX sh recipes.
+# justfile - OpenCloud for Unraid (wrapper image)
+# `just lint` runs the checks of lint.yml locally, with the Go tests run without
+# -race, which needs cgo. `just smoke` runs only the base boot gate of
+# build.yml, not the branding smoke. Run `just --list` to see everything.
+# POSIX sh recipes.
 
 set shell := ["sh", "-euc"]
 
@@ -60,12 +62,12 @@ run:
 # Lint  (mirrors lint.yml)
 # ---------------------------------------------------------------------------
 
-# All lint checks.
-lint: hadolint shellcheck test-branding
+# The checks of lint.yml.
+lint: hadolint shellcheck test-branding build-branding-web
 
-# Hadolint the Dockerfile.
+# Hadolint the Dockerfile, failing on warnings like CI.
 hadolint:
-    hadolint Dockerfile
+    hadolint --failure-threshold warning Dockerfile
 
 # ShellCheck the wrapper scripts.
 shellcheck:
@@ -75,9 +77,9 @@ shellcheck:
 test-branding:
     cd branding/server && { test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }; } && go vet ./... && go test ./...
 
-# Type check, unit tests and build of the branding web extension.
+# Type check, test and build the web extension; OpenCloud 7.2 lacks web-client/ox.
 build-branding-web:
-    cd branding/web && pnpm install --frozen-lockfile && pnpm check:types && pnpm test:unit --run && pnpm build
+    cd branding/web && pnpm install --frozen-lockfile && pnpm check:types && pnpm test:unit --run && pnpm build && ! grep -rqE "@opencloud-eu/web-client/ox" src tests
 
 # ---------------------------------------------------------------------------
 # Assets

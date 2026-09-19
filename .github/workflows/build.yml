@@ -9,12 +9,12 @@ name: Build & Push
 # Two channels, selected by the upstream base image (--build-arg BASE=...):
 #   :production  ->  opencloudeu/opencloud          (from `ARG BASE=` in Dockerfile)
 #   :rolling     ->  opencloudeu/opencloud-rolling  (from `ARG BASE_ROLLING=`)
-# Both pins live in the Dockerfile (Renovate tracks them); CI reads them from
-# there so there is a single source of truth.
+# CI reads both from the Dockerfile. They follow upstream's floating :latest
+# tags, which Renovate leaves alone; the weekly rebuild keeps them current.
 #
-# Architecture: one native build job per (channel, platform): amd64 on
-# ubuntu-latest, arm64 on ubuntu-24.04-arm (free for public repos). Each job
-# boots its image as a smoke gate (presence of gosu/opencloud + the entrypoint
+# Architecture: one native build job per channel and platform, amd64 on
+# ubuntu-latest and arm64 on ubuntu-24.04-arm (free for public repos). Each job
+# boots its image as a smoke gate (gosu and opencloud present, the entrypoint
 # reaching "OPENCLOUD IS READY" and the server staying up), boots it again with
 # the branding app on, pushes by digest, and a per-channel merge job assembles
 # the multi-arch manifest under that channel's tags for both registries.
@@ -28,7 +28,7 @@ name: Build & Push
 #                               renovate/* branches do not build, a branch named
 #                               latest, production or rolling gets no tag, and a
 #                               newer push cancels the build still running
-#   * Weekly cron (Sun 04 UTC) - picks up upstream OpenCloud + Alpine updates
+#   * Weekly cron (Sun 04 UTC), which picks up upstream OpenCloud and Alpine updates
 #   * Manual workflow_dispatch
 
 on:
@@ -120,12 +120,12 @@ jobs:
           tags: opencloud:smoke-${{ matrix.channel }}-${{ matrix.arch }}
           cache-from: type=gha,scope=build-${{ matrix.channel }}-${{ matrix.arch }}
 
-      # Smoke gate. A full WebUI boot needs volumes and a real domain, so the gate
-      # checks that gosu, opencloud and the entrypoint are present, and that the
-      # entrypoint runs init, drops to PUID:PGID via gosu, prints the READY banner
-      # and keeps the server up for a few seconds. A static file check would miss
-      # a broken privilege drop.
-      - name: "Smoke test: ${{ matrix.channel }}/${{ matrix.arch }} must init, drop privileges and stay up"
+      # Smoke gate. A full WebUI check needs volumes and a real domain, so this
+      # gate checks that gosu, opencloud and the entrypoint are present, and that
+      # the entrypoint runs init, drops to PUID:PGID, prints the READY banner and
+      # the server stays up for a few seconds. That still catches a broken
+      # privilege drop, which a file check would miss.
+      - name: Smoke test (${{ matrix.channel }}/${{ matrix.arch }})
         run: |
           set -euo pipefail
           img=opencloud:smoke-${{ matrix.channel }}-${{ matrix.arch }}
@@ -154,7 +154,7 @@ jobs:
           deadline=$((SECONDS + 150))
           while [ "$SECONDS" -lt "$deadline" ]; do
             if docker logs "$name" 2>&1 | grep -q 'OPENCLOUD IS READY'; then
-              echo "READY banner seen after ${SECONDS}s, verifying the server stays up..."
+              echo "READY banner seen after ${SECONDS}s, checking that the server stays up"
               sleep 8
               if [ -n "$(docker ps -q --filter name="$name")" ]; then ok=1; else echo "server exited right after the banner"; fi
               break
@@ -284,8 +284,8 @@ jobs:
           fetch "$base/themes/opencloud/theme.json" | jq -e --arg logo "$logo" '.common.logo == $logo'
           echo "branding smoke passed"
 
-      # CVE scan of the locally-loaded smoke image. Report-only (exit-code 0) so a
-      # finding never blocks the build - results land in the repo Security tab.
+      # CVE scan of the locally loaded smoke image. Report-only (exit-code 0), so a
+      # finding never blocks the build; results land in the repo's Security tab.
       - name: Scan image for CVEs (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -427,13 +427,15 @@ jobs:
         run: |
           docker buildx imagetools inspect ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
 
-  # Mirror the GitHub README to the Docker Hub repo description, once both channel
-  # manifests exist. Skipped until DOCKERHUB_TOKEN is set.
+  # Mirror the GitHub README to the Docker Hub repo description once both channel
+  # manifests exist. It signs in with DOCKERHUB_TOKEN, which needs read, write
+  # and delete scope to edit the description, and is skipped until that secret
+  # is set.
   dockerhub-description:
     needs: merge
     if: ${{ vars.DOCKERHUB_USERNAME != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
-    # Cosmetic README->Docker Hub sync; a credential hiccup here (e.g. 401) must
-    # never fail the image build/publish, which is the real deliverable.
+    # The sync is cosmetic, so a credential problem here (a 401, say) must not
+    # fail the image build.
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -446,7 +448,7 @@ jobs:
         env:
           PW: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
-          if [ -n "$PW" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "DOCKERHUB_TOKEN not set, skipping Docker Hub description sync"; echo "go=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$PW" ]; then echo "go=true" >> "$GITHUB_OUTPUT"; else echo "DOCKERHUB_TOKEN not set, skipping the Docker Hub description sync"; echo "go=false" >> "$GITHUB_OUTPUT"; fi
 
       - name: Sync README to Docker Hub
         if: ${{ steps.dhdesc.outputs.go == 'true' }}
@@ -455,5 +457,5 @@ jobs:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: ${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
-          short-description: "One-click OpenCloud for Unraid - auto-init, permission heal, PUID/PGID (production + rolling channels)."
+          short-description: "One-click OpenCloud for Unraid: auto-init, permission heal, PUID/PGID, production and rolling tags."
           enable-url-completion: true

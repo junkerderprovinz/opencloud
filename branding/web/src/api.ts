@@ -29,7 +29,7 @@ export const acceptedTypes = ['image/png', 'image/jpeg', 'image/gif', 'image/web
 
 export class FileTooLargeError extends Error {}
 
-export type Failure = 'forbidden' | 'too-large' | 'unsupported-type' | 'other'
+export type Failure = 'forbidden' | 'too-large' | 'size-refused' | 'unsupported-type' | 'other'
 
 export function failureOf(error: Error & { response?: { status: number } }): Failure {
   if (error instanceof FileTooLargeError) {
@@ -40,7 +40,7 @@ export function failureOf(error: Error & { response?: { status: number } }): Fai
     case 403:
       return 'forbidden'
     case 413:
-      return 'too-large'
+      return 'size-refused'
     case 415:
       return 'unsupported-type'
   }

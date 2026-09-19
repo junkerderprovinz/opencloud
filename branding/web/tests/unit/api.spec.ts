@@ -97,13 +97,16 @@ describe('failureOf', () => {
     expect(failureOf(answered(403))).toBe('forbidden')
   })
 
-  it('names a file the server refuses as too large or not an image', () => {
-    expect(failureOf(answered(413))).toBe('too-large')
-    expect(failureOf(answered(415))).toBe('unsupported-type')
-  })
-
   it('names a file refused before the upload as too large', () => {
     expect(failureOf(new FileTooLargeError())).toBe('too-large')
+  })
+
+  it('keeps a size the server refuses apart from the app limit', () => {
+    expect(failureOf(answered(413))).toBe('size-refused')
+  })
+
+  it('names a file the server cannot use as an unsupported type', () => {
+    expect(failureOf(answered(415))).toBe('unsupported-type')
   })
 
   it('does not blame the admin for server errors or a lost connection', () => {

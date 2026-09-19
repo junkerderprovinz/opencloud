@@ -71,15 +71,16 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 - it runs its binary as a **fixed UID with no `PUID`/`PGID` support**, so on a fresh Unraid box the root-owned bind mounts make the very first boot fail with *"permission denied"* writing `/etc/opencloud/opencloud.yaml` and `/var/lib/opencloud/nats`;
 - it requires a **one-time `opencloud init`** to be run by hand before `opencloud server` will start.
 
-This image is a **thin wrapper** around the official one that fixes exactly those two things and nothing else:
+This image is a **thin wrapper** around the official one that fixes those two things and adds a few extras:
 
 - **Auto-init** — runs `opencloud init` once on first boot (idempotent on later boots).
 - **Permission heal** — creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
 - **PUID / PGID** — drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
 - **Two channels** — `:rolling` (newest builds, the template default) and `:latest` (OpenCloud's fully QA'd production line), from the same wrapper.
 - **Multi-arch** — amd64 and arm64.
+- **Branding app (optional, off by default)**: set the name, logos, favicon and login background from the web UI, see [§7](#7-branding).
 
-The wrapper does **not** fork, patch or repackage OpenCloud itself — it layers a tiny entrypoint on top of the unmodified upstream image, so you always run real, current OpenCloud.
+The wrapper does **not** fork, patch or repackage OpenCloud itself. It layers a tiny entrypoint and the optional branding app on top of the unmodified upstream image, so you always run real, current OpenCloud.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/files.png" alt="OpenCloud web UI — the file browser" width="92%">
@@ -230,7 +231,7 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 7.5.x), published about every three weeks. |
+| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 8.x), published about every three weeks. |
 | `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:production` is kept as an alias, same image. |
 
 **Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)). Slow storage is precisely what produces those timeouts. Since production is cut roughly twice a year, the stable line will not carry the fix for months.
@@ -244,8 +245,9 @@ Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and 
 The entrypoint runs as root only long enough to prepare the volumes, then drops to your user:
 
 1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel — so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
-2. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). Idempotent — it harmlessly errors once the config exists.
-3. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image — no package manager needed in the base).
+2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
+3. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
+4. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
 <br>
 
@@ -322,7 +324,7 @@ docker build --build-arg BASE="$(grep -oE 'ARG BASE_ROLLING=[^[:space:]]+' Docke
 docker buildx build --platform linux/amd64,linux/arm64 -t opencloud:dev --load .
 ```
 
-`just` recipes mirror the CI flows — `just build`, `just build-rolling`, `just smoke`, `just lint`.
+`just build` and `just build-rolling` build the two channels like CI does, and `just lint` runs the checks of the Lint workflow on the Dockerfile, the scripts, brandingd (Go tests without `-race`) and the web extension. `just smoke` runs only the base boot gate, not the branding smoke from CI.
 
 <br>
 
@@ -406,17 +408,22 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  opencloudeu/opencloud[:latest] | opencloud-rolling           │
-│  (Alpine base + the OpenCloud binary, unmodified)             │
+│  opencloudeu/opencloud[:latest] | opencloud-rolling          │
+│  (Alpine base + the OpenCloud binary, unmodified)            │
 │  ┌────────────────────────────────────────────────────────┐  │
-│  │  entrypoint.sh  (runs as root)                          │  │
-│  │   ↓ mkdir + chown /etc/opencloud, /var/lib/opencloud    │  │
-│  │   ↓ one-time data heal (sentinel-guarded)               │  │
-│  │   ↓ gosu PUID:PGID  opencloud init  (|| true)           │  │
-│  │   ↓ print "OPENCLOUD IS READY" banner                   │  │
-│  │   ↓ exec gosu PUID:PGID  opencloud server               │  │
+│  │  entrypoint.sh  (runs as root)                         │  │
+│  │   ↓ mkdir + chown /etc/opencloud, /var/lib/opencloud   │  │
+│  │   ↓ one-time data heal (sentinel-guarded)              │  │
+│  │   ↓ BRANDING_APP: extension + proxy route              │  │
+│  │   ↓ brandingd -regenerate  (if a branding is saved)    │  │
+│  │   ↓ BRANDING_APP: brandingd on 127.0.0.1:9299 &        │  │
+│  │   ↓ gosu PUID:PGID  opencloud init  (|| true)          │  │
+│  │   ↓ print "OPENCLOUD IS READY" banner                  │  │
+│  │   ↓ exec gosu PUID:PGID  opencloud server              │  │
 │  └────────────────────────────────────────────────────────┘  │
-│      static gosu  ← COPY --from=tianon/gosu (multi-stage)     │
+│      multi-stage:  static gosu    ← tianon/gosu              │
+│                    brandingd      ← Go build stage           │
+│                    web extension  ← Node build stage         │
 └──────────────────────────────────────────────────────────────┘
 ```
 

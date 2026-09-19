@@ -171,8 +171,9 @@ jobs:
           [ "$ok" = "1" ] || { echo "smoke failed"; exit 1; }
           echo "smoke passed"
 
-      # The branding app runs only with BRANDING_APP=true, so it gets a boot of its own.
-      - name: Branding smoke - ${{ matrix.channel }}/${{ matrix.arch }}
+      # The branding app runs only with BRANDING_APP=true, so it gets boots of its
+      # own; the last one switches it off again on the same volumes.
+      - name: Branding smoke (${{ matrix.channel }}/${{ matrix.arch }})
         env:
           ADMIN_PASSWORD: smoketest
         run: |
@@ -181,32 +182,50 @@ jobs:
           name=oc-branding-${{ matrix.channel }}-${{ matrix.arch }}
           base=https://127.0.0.1:9200
           cd "$(mktemp -d)"
-          docker rm -f "$name" >/dev/null 2>&1 || true
-          docker run -d --name "$name" -p 127.0.0.1:9200:9200 \
-            -e IDM_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
-            -e OC_URL=https://localhost:9200 \
-            -e OC_INSECURE=true \
-            -e PROXY_ENABLE_BASIC_AUTH=true \
-            -e BRANDING_APP=true \
-            "$img"
-          cleanup() { echo "== last logs =="; docker logs "$name" 2>&1 | tail -80 || true; docker rm -f "$name" >/dev/null 2>&1 || true; }
+          start() {
+            docker rm -f -v "$name" >/dev/null 2>&1 || true
+            docker run -d --name "$name" -p 127.0.0.1:9200:9200 \
+              -v "$name-config:/etc/opencloud" \
+              -v "$name-data:/var/lib/opencloud" \
+              -e IDM_ADMIN_PASSWORD="$ADMIN_PASSWORD" \
+              -e OC_URL=https://localhost:9200 \
+              -e OC_INSECURE=true \
+              -e PROXY_ENABLE_BASIC_AUTH=true \
+              -e BRANDING_APP="$1" \
+              "$img" >/dev/null
+          }
+          # The banner art would fill most of the tail after a restart.
+          cleanup() {
+            echo "== wrapper and brandingd lines =="
+            docker logs "$name" 2>&1 | grep -E '\[entrypoint\]|brandingd|theme: ' || true
+            echo "== last logs =="
+            docker logs "$name" 2>&1 | grep -vF -e '░' -e '▒' -e '▓' -e '█' | tail -60 || true
+            docker rm -f -v "$name" >/dev/null 2>&1 || true
+            docker volume rm "$name-config" "$name-data" >/dev/null 2>&1 || true
+          }
           trap cleanup EXIT
-          fetch() { curl -skf --max-time 20 "$@"; }
+          fetch() { curl -sSkf --max-time 20 "$@" || { echo "request failed: $*" >&2; return 1; }; }
           expect() {
             local want=$1 got
             shift
             got=$(curl -sk --max-time 20 -o /dev/null -w '%{http_code}' "$@") || true
             [ "$got" = "$want" ] || { echo "expected $want, got $got for $*"; return 1; }
           }
+          # With the app off, /brandingsvc/ falls through to the web UI.
+          up() {
+            curl -skf --max-time 20 -o /dev/null "$base/status.php" || return 1
+            [ "$1" = false ] || [ "$(curl -skf --max-time 20 "$base/brandingsvc/health")" = ok ]
+          }
           wait_up() {
-            for _ in $(seq 1 60); do
-              if fetch "$base/status.php" >/dev/null && [ "$(fetch "$base/brandingsvc/health")" = ok ]; then return 0; fi
+            local deadline=$((SECONDS + 180))
+            until up "$1"; do
+              [ "$SECONDS" -lt "$deadline" ] || { echo "OpenCloud or brandingd did not come up within 180s"; return 1; }
               sleep 3
             done
-            echo "OpenCloud or brandingd did not come up"; return 1
           }
           admin=(-u "admin:$ADMIN_PASSWORD" -H 'X-Branding-Request: 1')
-          wait_up
+          start true
+          wait_up true
 
           echo "== base theme matches the server =="
           docker run --rm --entrypoint cat "$img" /usr/local/share/opencloud-branding/base-theme.json | jq -S '.clients.web.themes' > baked.json
@@ -229,7 +248,8 @@ jobs:
           fetch "$base/themes/opencloud/theme.json" > theme.json
           jq -e '.common.logo | startswith("themes/_branding/logo-")' theme.json
           jq -e '.common.logo as $l | .clients.web.defaults.logo == $l and any(.clients.web.themes[]; .isDark) and all(.clients.web.themes[]; (.logo // $l) == $l)' theme.json
-          fetch "$base/$(jq -r '.common.logo' theme.json)" -o served-logo.png
+          logo=$(jq -r '.common.logo' theme.json)
+          fetch "$base/$logo" -o served-logo.png
           cmp logo.png served-logo.png
 
           echo "== svg is sanitised =="
@@ -243,12 +263,25 @@ jobs:
 
           echo "== login background after restart =="
           expect 200 "${admin[@]}" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/background"
+          bg=$(fetch "${admin[@]}" "$base/brandingsvc/api/state" | jq -r '.background')
+          case "$bg" in /themes/_branding/background-*.png) ;; *) echo "background is $bg"; exit 1 ;; esac
           docker restart "$name" >/dev/null
-          wait_up
+          wait_up true
           fetch "$base/signin/v1/identifier" > identifier.html
           grep -q 'data-bg-img="/brandingsvc/login-background"' identifier.html
           fetch "$base/brandingsvc/login-background" -o background.png
           cmp logo.png background.png
+
+          echo "== app off, branding kept =="
+          start false
+          wait_up false
+          fetch "$base/config.json" | jq -e '[.external_apps[]? | select(.id == "branding")] | length == 0'
+          [ "$(curl -sk --max-time 20 "$base/brandingsvc/health")" != ok ] || { echo "brandingsvc still answers"; exit 1; }
+          fetch "$base/signin/v1/identifier" > identifier.html
+          grep -qF "data-bg-img=\"$bg\"" identifier.html || { echo "login page does not use $bg"; grep -o 'data-bg-img="[^"]*"' identifier.html; exit 1; }
+          fetch "$base$bg" -o background.png
+          cmp logo.png background.png
+          fetch "$base/themes/opencloud/theme.json" | jq -e --arg logo "$logo" '.common.logo == $logo'
           echo "branding smoke passed"
 
       # CVE scan of the locally-loaded smoke image. Report-only (exit-code 0) so a

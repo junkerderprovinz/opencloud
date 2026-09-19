@@ -45,7 +45,8 @@ type Store struct {
 	StateFile string // <data>/branding/state.json
 	Base      KV
 
-	mu sync.Mutex
+	mu       sync.Mutex
+	reported string // the problems load logged last, guarded by mu
 }
 
 // Load returns the saved state, or the zero State if nothing was saved yet.
@@ -122,20 +123,29 @@ func (s *Store) load() (st State, missing bool, err error) {
 	// The names become file paths, and state.json sits on a volume that other
 	// processes can write. A file removed by hand would leave a broken image on
 	// every page.
+	var problems []string
 	for _, k := range []imagefmt.Kind{imagefmt.Logo, imagefmt.LogoDark, imagefmt.Favicon, imagefmt.Background} {
 		name := field(&st, k)
 		if *name == "" {
 			continue
 		}
 		if !assetName.MatchString(*name) {
-			log.Printf("theme: %s: ignoring %s %q, not an asset name", s.StateFile, k, *name)
+			problems = append(problems, fmt.Sprintf("theme: %s: ignoring %s %q, not an asset name", s.StateFile, k, *name))
 			*name = ""
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(s.AssetsDir, *name)); errors.Is(err, os.ErrNotExist) {
-			log.Printf("theme: %s image %s is missing from %s, dropping it", k, *name, s.AssetsDir)
+			problems = append(problems, fmt.Sprintf("theme: %s image %s is missing from %s, ignoring it", k, *name, s.AssetsDir))
 			*name = ""
 		}
+	}
+	// Every view of the sign-in page loads the state, so a problem is logged
+	// when it appears and not again until it has gone away.
+	if report := strings.Join(problems, "\n"); report != s.reported {
+		for _, p := range problems {
+			log.Print(p)
+		}
+		s.reported = report
 	}
 	return st, false, nil
 }

@@ -393,3 +393,41 @@ func TestRegenerateDropsImagesWhoseFileIsGone(t *testing.T) {
 		t.Errorf("overlay still refers to a missing image: %s", overlay)
 	}
 }
+
+func TestMissingImageIsLoggedOnce(t *testing.T) {
+	s := newStore(t)
+	saved, err := s.SetImage(imagefmt.Background, "png", []byte("background"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(s.AssetsDir, saved.Background)
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	logs := captureLog(t)
+	for range 3 {
+		if st, err := s.Load(); err != nil || st.Background != "" {
+			t.Errorf("state = %+v, err %v, want no background", st, err)
+		}
+	}
+	lines := strings.Split(strings.TrimSpace(logs.String()), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], "ignoring it") {
+		t.Fatalf("want one line about the missing image, got %q", logs)
+	}
+
+	if err := os.WriteFile(file, []byte("background"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if st, _ := s.Load(); st.Background != saved.Background {
+		t.Errorf("background = %q after the file came back, want %q", st.Background, saved.Background)
+	}
+	if err := os.Remove(file); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Load(); err != nil {
+		t.Fatal(err)
+	}
+	if n := strings.Count(logs.String(), "ignoring it"); n != 2 {
+		t.Errorf("image missing a second time logged %d lines in all, want 2: %q", n, logs)
+	}
+}

@@ -133,7 +133,7 @@ func (s *Store) load() (st State, missing bool, err error) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(s.AssetsDir, *name)); errors.Is(err, os.ErrNotExist) {
-			log.Printf("theme: %s image %s is missing from %s, using OpenCloud's own", k, *name, s.AssetsDir)
+			log.Printf("theme: %s image %s is missing from %s, dropping it", k, *name, s.AssetsDir)
 			*name = ""
 		}
 	}

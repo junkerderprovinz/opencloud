@@ -24,17 +24,26 @@ name: Build & Push
 #                               rolling:    rolling, sha-<short>-rolling
 #   * Tag v*.*.*             -> production: <version>, <major>.<minor>, <major>
 #                               rolling:    <version>-rolling
-#   * Push to any other branch -> <branch>, <branch>-rolling (GHCR only, for testing)
+#   * Push to another branch -> <branch>, <branch>-rolling on GHCR only, for testing;
+#                               renovate/* branches do not build, a branch named
+#                               latest, production or rolling gets no tag, and a
+#                               newer push cancels the build still running
 #   * Weekly cron (Sun 04 UTC) - picks up upstream OpenCloud + Alpine updates
 #   * Manual workflow_dispatch
 
 on:
   push:
-    branches: [ '**' ]
+    branches: [ '**', '!renovate/**' ]
     tags: [ 'v*.*.*' ]
   schedule:
     - cron: '0 4 * * 0'
   workflow_dispatch:
+
+# Two quick pushes to a branch race for its <branch> tag, so the older run is
+# cancelled; main and release tags always run to the end.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' && github.ref != 'refs/heads/main' }}
 
 env:
   IMAGE_NAME: opencloud
@@ -320,37 +329,40 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Docker Hub mirror, active only once DOCKERHUB_USERNAME (variable) and
-      # DOCKERHUB_TOKEN (secret) are both set; skipped otherwise.
+      # Docker Hub mirror for main and release tags, active only once
+      # DOCKERHUB_USERNAME (variable) and DOCKERHUB_TOKEN (secret) are set
+      # together; skipped otherwise, so CI stays green and GHCR-only until then.
       - name: Login to Docker Hub
-        if: ${{ vars.DOCKERHUB_USERNAME != '' }}
+        if: ${{ vars.DOCKERHUB_USERNAME != '' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Channel-conditional tags. `production` is the stable default (also carries
-      # `latest` on the default branch); `rolling` carries `rolling` and a
-      # `-rolling`-suffixed version and sha, so the two channels never collide.
+      # `latest` on the default branch); `rolling` carries `rolling` + a
+      # `-rolling`-suffixed version/sha so the two channels never collide. Other
+      # branches get <branch> and <branch>-rolling on GHCR, except a branch named
+      # like one of the reserved tags.
       - name: Extract metadata (${{ matrix.channel }} tags)
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6
         with:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
-            name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ vars.DOCKERHUB_USERNAME != '' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
+            name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ vars.DOCKERHUB_USERNAME != '' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
           tags: |
-            type=raw,value=production,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
+            type=raw,value=production,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
             type=raw,value=latest,enable=${{ matrix.channel == 'production' && github.ref == 'refs/heads/main' }}
             type=semver,pattern={{version}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}},enable=${{ matrix.channel == 'production' }}
-            type=sha,format=short,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
-            type=raw,value=rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
+            type=sha,format=short,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
+            type=raw,value=rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
             type=semver,pattern={{version}},suffix=-rolling,enable=${{ matrix.channel == 'rolling' }}
-            type=sha,format=short,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref_name == 'main') }}
-            type=ref,event=branch,enable=${{ matrix.channel == 'production' && github.ref_type == 'branch' && github.ref_name != 'main' }}
-            type=ref,event=branch,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && github.ref_type == 'branch' && github.ref_name != 'main' }}
+            type=sha,format=short,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
+            type=ref,event=branch,enable=${{ matrix.channel == 'production' && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && !contains(fromJSON('["latest","production","rolling"]'), github.ref_name) }}
+            type=ref,event=branch,suffix=-rolling,enable=${{ matrix.channel == 'rolling' && github.ref_type == 'branch' && github.ref != 'refs/heads/main' && !contains(fromJSON('["latest","production","rolling"]'), github.ref_name) }}
 
       # Assemble the multi-arch manifest for every tag (both registries) from the
       # per-arch digests pushed to GHCR. imagetools copies platform images across

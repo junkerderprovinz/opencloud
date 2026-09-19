@@ -32,7 +32,7 @@
           :description-message="$gettext('Leave empty to use the OpenCloud default.')"
           :maxlength="120"
         />
-        <oc-button appearance="filled" :disabled="!textChanged || busy" @click="saveText">
+        <oc-button id="branding-save" appearance="filled" :disabled="!textChanged || busy" @click="saveText">
           {{ $gettext('Save') }}
         </oc-button>
       </section>
@@ -110,8 +110,14 @@ async function report(change: Promise<boolean>, done: string, failed: string, ki
   }
 }
 
-const saveText = () =>
-  report(branding.saveText(), $gettext('Name and slogan saved'), $gettext('Name and slogan could not be saved'))
+// Save turns disabled while it runs, which drops the focus to the page.
+async function saveText() {
+  const fromSave = document.activeElement.id === 'branding-save'
+  await report(branding.saveText(), $gettext('Name and slogan saved'), $gettext('Name and slogan could not be saved'))
+  if (fromSave) {
+    document.getElementById('branding-name').focus()
+  }
+}
 
 const upload = (image: ImageSlot, file: File) =>
   report(

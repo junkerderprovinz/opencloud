@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { defineComponent, h } from 'vue'
-import { mount, type VueWrapper } from '@vue/test-utils'
+import { enableAutoUnmount, mount, type VueWrapper } from '@vue/test-utils'
 import { createGettext } from 'vue3-gettext'
 import type { Action } from '@opencloud-eu/web-pkg'
 import type { BrandingState } from '../../src/api'
@@ -21,6 +21,7 @@ function mountSection(props: {
   changing?: boolean
 }) {
   return mount(ImageSection, {
+    attachTo: document.body,
     props: { kind: 'logo', label: 'Logo', busy: false, changing: false, ...props },
     global: {
       plugins: [createGettext({ translations: {}, silent: true })],
@@ -51,6 +52,8 @@ const nothingSaved: BrandingState = {
   background: '',
   loginBackgroundActive: false
 }
+
+enableAutoUnmount(afterEach)
 
 describe('ImageSection', () => {
   it('offers Reset only for an image saved in this slot', () => {
@@ -119,5 +122,28 @@ describe('ImageSection', () => {
     expect(waiting.find('section').attributes('aria-busy')).toBeUndefined()
     expect(waiting.find('[aria-label="Saving..."]').exists()).toBe(false)
     expect(waiting.find('img').attributes('src')).toBe(logo)
+  })
+
+  it('names the menu drawer after its slot', () => {
+    const wrapper = mountSection({
+      kind: 'logo-dark',
+      label: 'Logo for dark mode',
+      preview: { url: '', source: 'default' }
+    })
+
+    expect(wrapper.find('#branding-logo-dark-menu + [title]').attributes('title')).toBe('Logo for dark mode')
+  })
+
+  it('gives the focus back to the menu button only after keyboard use', async () => {
+    const wrapper = mountSection({ preview: { url: logo, source: 'custom' } })
+    const reset = actions(wrapper).find((action) => action.name === 'reset')
+
+    await wrapper.find('section').trigger('pointerdown')
+    reset.handler()
+    expect(document.activeElement.id).not.toBe('branding-logo-menu')
+
+    await wrapper.find('section').trigger('keydown', { key: 'Enter' })
+    reset.handler()
+    expect(document.activeElement.id).toBe('branding-logo-menu')
   })
 })

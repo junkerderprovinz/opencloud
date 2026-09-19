@@ -1,5 +1,5 @@
 <template>
-  <section :aria-busy="changing || undefined">
+  <section :aria-busy="changing || undefined" @keydown.capture="noteInput" @pointerdown.capture="noteInput">
     <div class="ext:flex ext:items-center">
       <h2 class="ext:my-0 ext:text-lg ext:font-semibold" v-text="label" />
       <oc-button
@@ -11,7 +11,14 @@
       >
         <oc-icon name="more-2" />
       </oc-button>
-      <oc-drop :drop-id="`${menuId}-drop`" :toggle="`#${menuId}`" mode="click" close-on-click padding-size="small">
+      <oc-drop
+        :drop-id="`${menuId}-drop`"
+        :toggle="`#${menuId}`"
+        :title="label"
+        mode="click"
+        close-on-click
+        padding-size="small"
+      >
         <context-action-menu :menu-sections="menuSections" :action-options="{}" />
       </oc-drop>
     </div>
@@ -78,8 +85,17 @@ const caption = computed(() => {
   return preview.source === 'default' && preview.url ? $gettext('OpenCloud default') : ''
 })
 
-// The drop removes the clicked menu item, so focus goes back to the menu button.
-const focusMenuButton = () => document.getElementById(menuId).focus()
+// The drop removes the chosen menu item. After keyboard use the focus goes back to the menu
+// button; after a click it stays put, because focus on the button opens its tooltip.
+let usedKeyboard = false
+const noteInput = (event: Event) => {
+  usedKeyboard = event.type === 'keydown'
+}
+function focusMenuButton() {
+  if (usedKeyboard) {
+    document.getElementById(menuId).focus()
+  }
+}
 
 const actions: Action[] = [
   {

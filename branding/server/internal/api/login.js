@@ -5,9 +5,7 @@
   // React owns its footer and would trip over a removed node, so it is hidden
   // and a footer of our own follows it.
   const applyFooter = (b, stock) => {
-    if (!stock.hidden) {
-      stock.hidden = true
-    }
+    stock.hidden = true
     let own = stock.nextElementSibling
     if (!own || !own.hasAttribute('data-branding')) {
       own = document.createElement('footer')
@@ -15,6 +13,8 @@
       own.setAttribute('data-branding', '')
       stock.after(own)
     }
+    // Rewriting the footer is itself a change to the page, so it only happens
+    // when the text differs.
     if (own.textContent !== (b.name || 'OpenCloud') + (b.slogan ? ` - ${b.slogan}` : '')) {
       const name = document.createElement('strong')
       name.textContent = b.name || 'OpenCloud'
@@ -25,10 +25,8 @@
     }
   }
 
-  // Each step checks first, so applying twice changes nothing and the
-  // observer below does not wake itself up.
   const apply = (b) => {
-    if (b.name && document.title !== `Sign in - ${b.name}`) {
+    if (b.name) {
       document.title = `Sign in - ${b.name}`
     }
     if (b.name || b.slogan) {
@@ -36,18 +34,16 @@
     }
     if (b.background) {
       const bg = document.querySelector('.oc-login-bg')
-      const image = `url("${b.background}")`
-      if (bg && bg.style.backgroundImage !== image) {
-        bg.style.backgroundImage = image
-      }
-      if (bg && !bg.classList.contains('oc-login-bg-image')) {
+      if (bg) {
+        bg.style.backgroundImage = `url("${b.background}")`
         bg.classList.add('oc-login-bg-image')
       }
       const artwork = document.querySelector('img.oc-login-bg-icon')
-      if (artwork && !artwork.hidden) {
+      if (artwork) {
         artwork.hidden = true
       }
     }
+    // Setting the same href again can make the browser fetch the icon again.
     const icon = b.favicon && document.querySelector('link[rel="icon"]')
     if (icon && icon.getAttribute('href') !== b.favicon) {
       icon.setAttribute('href', b.favicon)

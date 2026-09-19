@@ -2,3 +2,5 @@
 branding/web/node_modules
 branding/web/dist
 branding/web/.__mf__temp
+.dev-config
+.dev-data

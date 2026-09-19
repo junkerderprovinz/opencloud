@@ -11,5 +11,9 @@ Thumbs.db
 *.tar.gz
 *.log
 
+# Config and data of `just run`
+.dev-config
+.dev-data
+
 # Local Claude Code / agent config (never commit)
 .claude/

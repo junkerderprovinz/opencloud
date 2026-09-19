@@ -352,16 +352,22 @@ func useAllowed(n *node, byID map[string]*node, hasUse map[*node]bool, kept *int
 
 // drawCost counts the elements a browser draws for root with every href and
 // url() reference expanded, plus layerCost per mask or clip path reference.
-// It saturates just above maxCost.
+// It saturates just above maxCost, which a reference loop also returns:
+// browsers break a loop in different places, so no count holds for all.
 func drawCost(root *node) int {
 	c := coster{byID: map[string]*node{}, memo: map[*node]int{}}
 	indexIDs(root, c.byID)
-	return c.cost(root)
+	total := c.cost(root)
+	if c.loop {
+		return maxCost + 1
+	}
+	return total
 }
 
 type coster struct {
 	byID map[string]*node
 	memo map[*node]int // -1 while a node is being counted
+	loop bool
 }
 
 func (c *coster) cost(n *node) int {
@@ -388,8 +394,11 @@ func (c *coster) cost(n *node) int {
 		}
 		for _, id := range ids {
 			target, ok := c.byID[id]
-			// Browsers drop a reference that loops back, so it draws nothing.
-			if !ok || c.memo[target] < 0 {
+			if !ok {
+				continue
+			}
+			if c.memo[target] < 0 {
+				c.loop = true
 				continue
 			}
 			total = addCost(total, c.cost(target))

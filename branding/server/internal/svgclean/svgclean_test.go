@@ -251,9 +251,18 @@ func TestDropsReferencesToIdsABrowserRewrites(t *testing.T) {
 	}
 }
 
-func TestSelfReferencingMasksTerminate(t *testing.T) {
-	mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><mask id="m" mask="url(#m)"><rect mask="url(#m)"/></mask><rect mask="url(#m)"/></svg>`)
-	mustClean(t, `<svg xmlns="http://www.w3.org/2000/svg"><mask id="a"><rect mask="url(#b)"/></mask><mask id="b"><rect style="mask:url(#a)"/></mask><rect mask="url(#a)"/></svg>`)
+func TestRejectsReferenceLoops(t *testing.T) {
+	cases := map[string]string{
+		"mask on itself": `<svg xmlns="http://www.w3.org/2000/svg"><mask id="m" mask="url(#m)"><rect mask="url(#m)"/></mask><rect mask="url(#m)"/></svg>`,
+		"two masks":      `<svg xmlns="http://www.w3.org/2000/svg"><mask id="a"><rect mask="url(#b)"/></mask><mask id="b"><rect style="mask:url(#a)"/></mask><rect mask="url(#a)"/></svg>`,
+		"loop behind a costly mask": `<svg xmlns="http://www.w3.org/2000/svg"><mask id="a">` + strings.Repeat(`<rect/>`, 1000) + `<rect mask="url(#b)"/></mask>` +
+			`<mask id="b"><rect mask="url(#a)"/></mask><rect mask="url(#a)"/>` + strings.Repeat(`<rect mask="url(#b)"/>`, 200) + `</svg>`,
+	}
+	for name, in := range cases {
+		if _, err := Sanitize(strings.NewReader(in)); !errors.Is(err, ErrTooComplex) {
+			t.Errorf("%s: want ErrTooComplex, got %v", name, err)
+		}
+	}
 }
 
 func TestRejectsExcessiveNesting(t *testing.T) {

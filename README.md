@@ -273,7 +273,7 @@ Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template
 - the favicon
 - the background of the login page
 
-Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities, and a very complex one, such as masks nested in masks, is refused because it would freeze the browser.
+Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities. One that would freeze the browser, such as masks nested in masks or references that loop back on themselves, is refused.
 
 The login page learns only at container start whether there is a custom background. So adding the first background, or removing it again, needs one container restart, and the app shows a note when that is due. Everything else shows up as soon as you save, including a swap from one background to another.
 

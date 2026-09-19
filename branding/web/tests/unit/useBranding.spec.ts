@@ -43,6 +43,35 @@ describe('useBranding', () => {
     expect(branding.textChanged.value).toBe(true)
   })
 
+  // Another tab or admin saved 'Knight Cloud' after this tab loaded.
+  function staleTab() {
+    const api = fakeApi()
+    vi.mocked(api.state).mockResolvedValueOnce({ ...saved, name: 'Old name', slogan: 'Old slogan' })
+    return useBranding(api, reloadThemeOk)
+  }
+
+  it('shows name and slogan saved elsewhere once an image change brings them along', async () => {
+    const branding = staleTab()
+    await branding.load()
+
+    await branding.uploadImage('logo', new Blob(['x']))
+
+    expect(branding.name.value).toBe('Knight Cloud')
+    expect(branding.slogan.value).toBe('Files, forged')
+    expect(branding.textChanged.value).toBe(false)
+  })
+
+  it('updates only the untouched field when the other one is being edited', async () => {
+    const branding = staleTab()
+    await branding.load()
+    branding.slogan.value = 'Unsaved slogan'
+
+    await branding.clearImage('logo')
+
+    expect(branding.name.value).toBe('Knight Cloud')
+    expect(branding.slogan.value).toBe('Unsaved slogan')
+  })
+
   it('shows name and slogan as the server saved them', async () => {
     const branding = useBranding(fakeApi(), reloadThemeOk)
     await branding.load()

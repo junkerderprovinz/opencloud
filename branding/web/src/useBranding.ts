@@ -24,7 +24,15 @@ export function useBranding(api: BrandingApi, reloadTheme: () => Promise<void>) 
   async function change(save: () => Promise<BrandingState>) {
     busy.value = true
     try {
+      const before = state.value
       state.value = await save()
+      // Another tab may have saved a new name or slogan since this one loaded.
+      if (name.value === before.name) {
+        name.value = state.value.name
+      }
+      if (slogan.value === before.slogan) {
+        slogan.value = state.value.slogan
+      }
       return await reloadTheme().then(
         () => true,
         (e) => {

@@ -40,15 +40,16 @@ smoke: build
     name=oc-smoke
     docker rm -f "$name" >/dev/null 2>&1 || true
     docker run -d --name "$name" -e IDM_ADMIN_PASSWORD=smoketest -e OC_URL=https://localhost:9200 -e OC_INSECURE=true "$img" >/dev/null
-    deadline=$((SECONDS + 120))
-    while [ "$SECONDS" -lt "$deadline" ]; do
+    i=0
+    while [ "$i" -lt 40 ]; do
         if docker logs "$name" 2>&1 | grep -q 'OPENCLOUD IS READY'; then
-            echo "READY after ${SECONDS}s; server must stay up..."; sleep 8
+            echo "READY after about $((i * 3))s; server must stay up..."; sleep 8
             [ -n "$(docker ps -q --filter name=$name)" ] && { echo "OK"; docker rm -f "$name" >/dev/null; exit 0; }
             echo "server exited after banner"; docker logs "$name"; docker rm -f "$name" >/dev/null; exit 1
         fi
         [ -n "$(docker ps -q --filter name=$name)" ] || { echo "container exited early:"; docker logs "$name"; docker rm -f "$name" >/dev/null; exit 1; }
         sleep 3
+        i=$((i + 1))
     done
     echo "READY banner not seen within 120s:"; docker logs "$name"; docker rm -f "$name" >/dev/null; exit 1
 

@@ -21,7 +21,7 @@
 <p align="center">
 A plug-and-play Docker image that turns the official <b>OpenCloud</b> server into a genuine
 one-click Unraid app: it runs the required first-boot <code>init</code> for you, heals the
-appdata permissions and honours Unraid's <code>PUID</code>/<code>PGID</code> — no console,
+appdata permissions and honours Unraid's <code>PUID</code>/<code>PGID</code>. No console,
 no <code>chown</code>, no config-file editing required.
 </p>
 
@@ -73,17 +73,17 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 
 This image is a **thin wrapper** around the official one that fixes those two things and adds a few extras:
 
-- **Auto-init** — runs `opencloud init` once on first boot (idempotent on later boots).
-- **Permission heal** — creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
-- **PUID / PGID** — drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
-- **Two channels** — `:rolling` (newest builds, the template default) and `:latest` (OpenCloud's fully QA'd production line), from the same wrapper.
-- **Multi-arch** — amd64 and arm64.
+- **Auto-init**: runs `opencloud init` once on first boot (idempotent on later boots).
+- **Permission heal**: creates the config/data dirs and hands them to your `PUID:PGID`, and repairs a previously root-owned tree once (sentinel-guarded, so it never recursively re-`chown`s your whole data set on every start).
+- **PUID / PGID**: drops privileges to Unraid's `nobody:users` (99:100) by default via a static `gosu`.
+- **Two channels**: `:rolling` (newest builds, the template default) and `:latest` (OpenCloud's fully QA'd production line), from the same wrapper.
+- **Multi-arch**: amd64 and arm64.
 - **Branding app (optional, off by default)**: set the name, logos, favicon and login background from the web UI, see [§7](#7-branding).
 
 The wrapper does **not** fork, patch or repackage OpenCloud itself. It layers a tiny entrypoint and the optional branding app on top of the unmodified upstream image, so you always run real, current OpenCloud.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/files.png" alt="OpenCloud web UI — the file browser" width="92%">
+  <img src="https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/.github/assets/screenshots/files.png" alt="OpenCloud web UI showing the file browser" width="92%">
   <br><em>The OpenCloud web UI: your personal space with files, folders and spaces.</em>
 </p>
 
@@ -96,7 +96,7 @@ The wrapper does **not** fork, patch or repackage OpenCloud itself. It layers a 
 
 ## 2. Quick Start
 
-### Step 1 — Install the template
+### Step 1: Install the template
 
 On Unraid: **Apps** → search for **OpenCloud** → **Install**. The Community Applications template is published from the [`unraid-apps`](https://github.com/junkerderprovinz/unraid-apps) feed.
 
@@ -108,11 +108,11 @@ curl -fsSL -o /boot/config/plugins/dockerMan/templates-user/my-OpenCloud.xml \
   https://raw.githubusercontent.com/junkerderprovinz/unraid-apps/main/opencloud/opencloud.xml
 ```
 
-### Step 2 — Set the admin password and paths
+### Step 2: Set the admin password and paths
 
-In the template, the only field you **must** set is **Admin Password** (`IDM_ADMIN_PASSWORD`) — it becomes the password for the built-in `admin` user on first start. The two volumes default to `/mnt/user/appdata/opencloud/{config,data}`; adjust the data path to a share with room to grow.
+In the template, the only field you **must** set is **Admin Password** (`IDM_ADMIN_PASSWORD`). It becomes the password for the built-in `admin` user on first start. The two volumes default to `/mnt/user/appdata/opencloud/{config,data}`; adjust the data path to a share with room to grow.
 
-### Step 3 — Start and wait for the banner
+### Step 3: Start and wait for the banner
 
 Hit **Apply**. The first start takes a moment while the container generates its config and a self-signed certificate. Watch the container log for:
 
@@ -121,7 +121,7 @@ Hit **Apply**. The first start takes a moment while the container generates its 
   OPENCLOUD IS READY
 ```
 
-### Step 4 — Open the WebUI
+### Step 4: Open the WebUI
 
 Open `https://<unraid-ip>:9200/` and accept the self-signed certificate once. Log in as **`admin`** with the password you set.
 
@@ -152,50 +152,50 @@ Set `OC_URL` to how clients reach the server (its IP:port, or your proxied hostn
 
 | Variable | Default | Description |
 |---|---|---|
-| `IDM_ADMIN_PASSWORD` | *(required)* | Password for the built-in `admin` user — applied on first init. **Set this.** |
-| `OC_URL` | `https://192.168.1.10:9200` | **Required.** Public URL clients use to reach OpenCloud, and the OIDC login issuer — must be `https`. Set your server's real LAN `IP:9200`, or your external hostname behind a reverse proxy. Unraid does not auto-fill this. |
+| `IDM_ADMIN_PASSWORD` | *(required)* | Password for the built-in `admin` user, applied on first init. **Set this.** |
+| `OC_URL` | `https://192.168.1.10:9200` | **Required.** Public URL clients use to reach OpenCloud, and the OIDC login issuer. Must be `https`. Set your server's real LAN `IP:9200`, or your external hostname behind a reverse proxy. Unraid does not auto-fill this. |
 | `OC_INSECURE` | `true` | Accept the container's self-signed cert. Set `false` when a proxy provides a valid cert. |
-| `OC_LOG_LEVEL` | `info` | Log verbosity — `info`, `warn`, `error`, `debug`. |
-| `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only — unsafe for real use). |
+| `OC_LOG_LEVEL` | `info` | Log verbosity: `info`, `warn`, `error`, `debug`. |
+| `IDM_CREATE_DEMO_USERS` | `false` | Seed demo users (test only, unsafe for real use). |
 | `PROXY_TLS` | `true` | OpenCloud terminates TLS itself on 9200. Set `false` behind a TLS-terminating proxy (see [§6](#6-reverse-proxy)). |
 | `PROXY_ENABLE_APP_AUTH` | `false` | Let WebDAV clients sign in with a username and an **app token**. Needed by rclone and by phone sync apps, which cannot do the browser sign-in. Off by default; see [§10](#10-troubleshooting). |
 | `BRANDING_APP` | `false` | Add a **Branding** app where admins set the instance name, slogan, logos, favicon and login background. See [§7](#7-branding). |
-| `PUID` | `99` | User ID OpenCloud runs as — Unraid's *nobody*. |
-| `PGID` | `100` | Group ID — Unraid's *users*. |
+| `PUID` | `99` | User ID OpenCloud runs as, Unraid's *nobody*. |
+| `PGID` | `100` | Group ID, Unraid's *users*. |
 
 | Port | Purpose | | Volume | Purpose |
 |---|---|---|---|---|
 | `9200` | HTTPS WebUI / API (self-signed by default) | | `/etc/opencloud` | Config (`opencloud.yaml` + secrets) |
-| | | | `/var/lib/opencloud` | Data — user files, index, `nats` bus |
+| | | | `/var/lib/opencloud` | Data: user files, index, `nats` bus |
 
-> **No database.** OpenCloud is *not* Nextcloud — it has no MySQL/Postgres and needs none. State lives in the local storage tree on the `/var/lib/opencloud` volume plus an embedded NATS bus. Don't add a database container; there's nothing to point it at.
+> **No database.** OpenCloud is *not* Nextcloud. It has no MySQL/Postgres and needs none. State lives in the local storage tree on the `/var/lib/opencloud` volume plus an embedded NATS bus. Don't add a database container; there's nothing to point it at.
 
-> **Files show up but are greyed out / won't open?** The storage driver is wrong. Keep `STORAGE_USERS_DRIVER=posix` (the default) — never leave it blank and never use `local`; both leave files visible but unreadable. Also make sure the Data volume is on a filesystem with extended-attribute support (the Unraid array and cache/pool disks have it). The driver is fixed at first init — to change it, start with a fresh Data folder.
+> **Files show up but are greyed out / won't open?** The storage driver is wrong. Keep `STORAGE_USERS_DRIVER=posix` (the default): never leave it blank and never use `local`; both leave files visible but unreadable. Also make sure the Data volume is on a filesystem with extended-attribute support (the Unraid array and cache/pool disks have it). The driver is fixed at first init. To change it, start with a fresh Data folder.
 
 <br>
 
 ### S3 object storage (optional)
 
-OpenCloud can keep file **blobs** in any S3-compatible bucket while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage — do **not** leave it blank.
+OpenCloud can keep file **blobs** in any S3-compatible bucket while the metadata stays local. Set the storage driver to `decomposeds3` and add the connection variables. Keep the driver on `posix` (the default) for normal local storage. Do **not** leave it blank.
 
 For self-hosted, two genuine, actively-maintained S3-compatible stores work well here: **[SeaweedFS](https://github.com/junkerderprovinz/unraid-apps/tree/main/seaweedfs)** (recommended for a single node) and **[Garage](https://github.com/junkerderprovinz/garage)** (built for geo-distributed multi-node clusters, but runs single-node here too). AWS S3, Backblaze B2 and Wasabi work the same way against their own endpoints.
 
 | Variable | Example | Description |
 |---|---|---|
-| `STORAGE_USERS_DRIVER` | `decomposeds3` | Set to `decomposeds3` for S3 blob storage. Default is `posix` (local) — never leave it blank or use `local`, both grey out files. |
+| `STORAGE_USERS_DRIVER` | `decomposeds3` | Set to `decomposeds3` for S3 blob storage. Default is `posix` (local): never leave it blank or use `local`, both grey out files. |
 | `STORAGE_USERS_DECOMPOSEDS3_ENDPOINT` | `http://192.168.1.10:8333` | S3 endpoint. Internal `http://` URL for self-hosted SeaweedFS/Garage; the provider's `https://` endpoint for AWS/B2/Wasabi. |
 | `STORAGE_USERS_DECOMPOSEDS3_REGION` | `default` | `default` for SeaweedFS, `garage` for Garage (its default region), or the provider region (`us-east-1`, …) otherwise. |
 | `STORAGE_USERS_DECOMPOSEDS3_ACCESS_KEY` | `…` | Access key ID. |
 | `STORAGE_USERS_DECOMPOSEDS3_SECRET_KEY` | `…` | Secret access key. |
-| `STORAGE_USERS_DECOMPOSEDS3_BUCKET` | `opencloud` | Bucket name — **create it first**, the container does not. |
+| `STORAGE_USERS_DECOMPOSEDS3_BUCKET` | `opencloud` | Bucket name: **create it first**, the container does not. |
 
 **Where those values come from:**
 
-- **SeaweedFS (self-hosted).** In that template, set an **Access Key** and **Secret Key** (see its README's Security note) and optionally a **Pre-create Bucket** name — those become your access key, secret key and bucket directly, no separate service-account step. Point the endpoint at its S3 port, `http://<seaweedfs-ip>:8333`, with region `default`.
-- **Garage (self-hosted).** In that template, set an **Access Key** and **Secret Key** (and optionally a **Bucket**) — they are pre-seeded on first boot, no separate CLI step. Point the endpoint at its S3 API port, `http://<garage-ip>:3900`, with region `garage`.
+- **SeaweedFS (self-hosted).** In that template, set an **Access Key** and **Secret Key** (see its README's Security note) and optionally a **Pre-create Bucket** name. Those become your access key, secret key and bucket directly, no separate service-account step. Point the endpoint at its S3 port, `http://<seaweedfs-ip>:8333`, with region `default`.
+- **Garage (self-hosted).** In that template, set an **Access Key** and **Secret Key** (and optionally a **Bucket**). They are pre-seeded on first boot, no separate CLI step. Point the endpoint at its S3 API port, `http://<garage-ip>:3900`, with region `garage`.
 - **AWS S3 / Backblaze B2 / Wasabi.** Create a bucket in the provider console, then create an access key (AWS: an IAM access key; B2/Wasabi: an application/API key). Use the provider's `https://` endpoint and the bucket's region.
 
-> **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3** — losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
+> **The metadata always stays local.** `decomposeds3` puts only the blob bytes in S3; the file tree, xattrs and the blob→object mapping live on `/var/lib/opencloud`. That volume is therefore **required and must be backed up even with S3**. Losing it orphans your S3 objects (they are opaque IDs with no folder structure). There is no all-on-S3 mode. OpenCloud's system/metadata store (`STORAGE_SYSTEM_DRIVER`) stays `decomposed` (local) and needs no change.
 
 If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_DECOMPOSEDS3_PUT_OBJECT_DISABLE_CONTENT_SHA256=true`. Both the SeaweedFS and Garage paths use the same generic `decomposeds3` driver this wrapper's S3 support was originally built and verified against. SeaweedFS has since been re-verified live against a real OpenCloud instance after the switch away from MinIO (connectivity, boot health and unauthenticated bucket reachability all confirmed; a fully authenticated file-read round-trip is the one check still outstanding). Garage has not yet been separately re-verified end-to-end.
 
@@ -206,19 +206,19 @@ If uploads fail with a checksum error on a non-AWS endpoint, add `STORAGE_USERS_
 OpenCloud can edit documents in the browser, but it ships no office engine: it speaks the **WOPI** protocol to a **separate document-server container**. This wrapper wires that up from three template fields (all advanced, default off).
 
 1. **Run a document server** (its own container):
-   - **Euro Office** (`euro-office`) — the sovereign OnlyOffice fork, image `ghcr.io/euro-office/documentserver`, port 80. Set `WOPI_ENABLED=true`. There is a one-click Unraid template for it in the [junkerderprovinz feed](https://github.com/junkerderprovinz/unraid-apps) (search **Euro Office** in Community Applications). OpenCloud itself makes Euro Office the default editor for MS formats (docx/xlsx/pptx).
-   - **Collabora Online (CODE)** (`collabora`) — image `collabora/code`, port 9980. A maintained community CA template exists (search **Collabora** in Community Applications); set its WOPI host allowlist (`aliasgroup1` / `domain`) to your OpenCloud URL. Best for ODF (odt/ods/odp).
-   - **OnlyOffice Document Server** (`onlyoffice`) — image `onlyoffice/documentserver`, port 80; set `WOPI_ENABLED=true`. A community CA template exists.
+   - **Euro Office** (`euro-office`): the sovereign OnlyOffice fork, image `ghcr.io/euro-office/documentserver`, port 80. Set `WOPI_ENABLED=true`. There is a one-click Unraid template for it in the [junkerderprovinz feed](https://github.com/junkerderprovinz/unraid-apps) (search **Euro Office** in Community Applications). OpenCloud itself makes Euro Office the default editor for MS formats (docx/xlsx/pptx).
+   - **Collabora Online (CODE)** (`collabora`): image `collabora/code`, port 9980. A maintained community CA template exists (search **Collabora** in Community Applications); set its WOPI host allowlist (`aliasgroup1` / `domain`) to your OpenCloud URL. Best for ODF (odt/ods/odp).
+   - **OnlyOffice Document Server** (`onlyoffice`): image `onlyoffice/documentserver`, port 80; set `WOPI_ENABLED=true`. A community CA template exists.
 2. **Point OpenCloud at it:** set **Web office suite** to `euro-office`, `collabora` or `onlyoffice`, **Office document server URL** to the server's browser-reachable URL, and an **Office WOPI secret**. For OnlyOffice and Euro Office that secret **must equal the document server's JWT secret** (`JWT_SECRET` / `EURO_OFFICE_JWT_SECRET`); for Collabora it is not required.
 3. **Reverse proxy:** forward `/wopi` and `/collaboration` to OpenCloud on port 9200, and make sure OpenCloud and the document server can reach each other over the network.
 
-Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service (`OC_ADD_RUN_SERVICES=collaboration`), sets the `COLLABORATION_*` variables, registers it as the secure-view/edit handler and exposes the secure-view role. It also writes a small `csp.yaml` adding the document server's origin to OpenCloud's Content-Security-Policy `frame-src`/`img-src` and points `PROXY_CSP_CONFIG_FILE_LOCATION` at it, so the editor iframe isn't CSP-blocked by the browser — a step OpenCloud's own reference deployment requires wiring by hand. Already set `PROXY_CSP_CONFIG_FILE_LOCATION` yourself? The wrapper leaves it alone; add the document server's origin to your own file's `frame-src`/`img-src`. Leave **Web office suite** on `off` (the default) if you do not need document editing.
+Under the hood the wrapper turns on OpenCloud's built-in `collaboration` service (`OC_ADD_RUN_SERVICES=collaboration`), sets the `COLLABORATION_*` variables, registers it as the secure-view/edit handler and exposes the secure-view role. It also writes a small `csp.yaml` adding the document server's origin to OpenCloud's Content-Security-Policy `frame-src`/`img-src` and points `PROXY_CSP_CONFIG_FILE_LOCATION` at it, so the editor iframe isn't CSP-blocked by the browser, a step OpenCloud's own reference deployment requires wiring by hand. Already set `PROXY_CSP_CONFIG_FILE_LOCATION` yourself? The wrapper leaves it alone; add the document server's origin to your own file's `frame-src`/`img-src`. Leave **Web office suite** on `off` (the default) if you do not need document editing.
 
 ### Full-text search (Apache Tika, optional)
 
-OpenCloud already has a built-in search: out of the box it matches **file and folder names** and metadata (tags, media type, …). It does not look **inside file contents** on its own. **Apache Tika** is not a second search engine, it is a text-extractor that OpenCloud's search service uses to read the text out of documents (PDF, Word, Excel, PowerPoint, ODF, …) so a search word inside a file is found too. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment — this Unraid wrapper has no `.env`; the two template fields below do the wiring instead.)
+OpenCloud already has a built-in search: out of the box it matches **file and folder names** and metadata (tags, media type, …). It does not look **inside file contents** on its own. **Apache Tika** is not a second search engine, it is a text-extractor that OpenCloud's search service uses to read the text out of documents (PDF, Word, Excel, PowerPoint, ODF, …) so a search word inside a file is found too. (The `TIKA=:tika.yml` / `TIKA_IMAGE` lines you may have seen belong to OpenCloud's official *docker-compose* deployment. This Unraid wrapper has no `.env`; the two template fields below do the wiring instead.)
 
-1. **Run Apache Tika** (its own container). Ready-made **Tika templates exist in Community Applications** (search *Tika*) — install one (image `apache/tika`, port `9998`; a `-full` tag additionally does OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
+1. **Run Apache Tika** (its own container). Ready-made **Tika templates exist in Community Applications** (search *Tika*). Install one (image `apache/tika`, port `9998`; a `-full` tag additionally does OCR of scanned images). Note its network-reachable address, e.g. `http://<TIKA_IP>:9998`.
 2. **Turn it on:** set **Full-text search (Tika)** to `true` and **Tika server URL** to that address, then **Apply**. The wrapper points OpenCloud's search extractor at Tika and switches full-text search on for you.
 
 Under the hood the wrapper sets `SEARCH_EXTRACTOR_TYPE=tika`, `SEARCH_EXTRACTOR_TIKA_TIKA_URL` and `FRONTEND_FULL_TEXT_SEARCH_ENABLED=true` (plus `SEARCH_EXTRACTOR_CS3SOURCE_INSECURE=true` for the internal LAN cert). Only files uploaded or changed **after** this are content-indexed; existing files are **not** re-indexed automatically, so re-upload or edit a file to test. See the [OpenCloud search docs](https://docs.opencloud.eu/docs/dev/server/Services/search/Search-info/).
@@ -236,7 +236,7 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 **Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)). Slow storage is precisely what produces those timeouts. Since production is cut roughly twice a year, the stable line will not carry the fix for months.
 
-Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches — no waiting on a version-bump PR to get merged.
+Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches, with no waiting on a version-bump PR to get merged.
 
 <br>
 
@@ -244,7 +244,7 @@ Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and 
 
 The entrypoint runs as root only long enough to prepare the volumes, then drops to your user:
 
-1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel — so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
+1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel, so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
 2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
 3. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
 4. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
@@ -253,7 +253,7 @@ The entrypoint runs as root only long enough to prepare the volumes, then drops 
 
 ## 6. Reverse Proxy
 
-By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificate — ideal for a direct LAN install. To put it behind a reverse proxy that terminates TLS (Traefik, NGINX Proxy Manager, SWAG, …):
+By default OpenCloud serves HTTPS itself on `9200` with a self-signed certificate, ideal for a direct LAN install. To put it behind a reverse proxy that terminates TLS (Traefik, NGINX Proxy Manager, SWAG, …):
 
 - set **`PROXY_TLS=false`** (OpenCloud then serves plain HTTP for the proxy to wrap),
 - set **`OC_URL`** to your external URL, e.g. `https://cloud.example.com`,
@@ -353,9 +353,9 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 ### Crash loop with `search: cannot open index, metadata missing`
 
-The container starts, heals ownership, then crash-loops and the WebUI never comes up. This means the **Data** volume is pointing at a **non-fresh** OpenCloud/oCIS data directory — an old install, or a data set created with a different storage backend (local vs S3). The layouts are not interchangeable and there is **no in-place migration between backends**, so the `search` service can't open its index and takes the whole server down.
+The container starts, heals ownership, then crash-loops and the WebUI never comes up. This means the **Data** volume is pointing at a **non-fresh** OpenCloud/oCIS data directory: an old install, or a data set created with a different storage backend (local vs S3). The layouts are not interchangeable and there is **no in-place migration between backends**, so the `search` service can't open its index and takes the whole server down.
 
-Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image — a clean data dir boots normally, S3 included.
+Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image. A clean data dir boots normally, S3 included.
 
 ### A WebDAV client gets `401 Unauthorized` with an app token that is definitely correct
 
@@ -378,7 +378,7 @@ Fix: put the **Data** volume on a **fast SSD/NVMe pool**, not the array. With a 
 <details>
 <summary><b>First start seems stuck / WebUI not reachable yet</b></summary>
 
-The first boot runs `opencloud init` and generates a self-signed certificate — give it a moment. Watch the log for the **OPENCLOUD IS READY** banner, then open `https://<ip>:9200/`.
+The first boot runs `opencloud init` and generates a self-signed certificate, so give it a moment. Watch the log for the **OPENCLOUD IS READY** banner, then open `https://<ip>:9200/`.
 </details>
 
 <details>
@@ -445,7 +445,7 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 
 Pull requests welcome. Issues: <https://github.com/junkerderprovinz/opencloud/issues>.
 
-**Licensing — dual:**
+**Licensing, dual:**
 
 - This **wrapper repository** (Dockerfile, `entrypoint.sh`, `print-banner.sh`, `branding/` with brandingd and the web extension, Unraid template, README and banner/icon artwork) is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
 - **OpenCloud itself** and the bundled `gosu` binary are **Apache-2.0**; the Alpine base and its packages keep their own licenses. When you run, redistribute or rebuild the resulting image you must comply with **all** of those, not only this wrapper's AGPL-3.0 license. See [`NOTICE`](NOTICE).
@@ -454,8 +454,8 @@ The OpenCloud logo and wordmark are the property of OpenCloud GmbH, used unmodif
 
 ### Credits
 
-- [**OpenCloud**](https://opencloud.eu) — the file sync-and-share platform this image wraps
-- [**gosu**](https://github.com/tianon/gosu) — clean, static privilege-drop for the entrypoint
+- [**OpenCloud**](https://opencloud.eu), the file sync-and-share platform this image wraps
+- [**gosu**](https://github.com/tianon/gosu), clean static privilege-drop for the entrypoint
 
 <br>
 

@@ -57,6 +57,23 @@
       ]
     },
     {
+      "description": "Go in lint.yml (setup-go) and the golang build image in the Dockerfile move together and wait for review, so lint tests the toolchain the image builds with.",
+      "matchDepNames": [
+        "go",
+        "golang"
+      ],
+      "groupName": "Go toolchain",
+      "automerge": false
+    },
+    {
+      "description": "Node in lint.yml (setup-node) and the node build image in the Dockerfile move together and wait for review, for the same reason.",
+      "matchDepNames": [
+        "node"
+      ],
+      "groupName": "Node toolchain",
+      "automerge": false
+    },
+    {
       "description": "Docker: auto-merge digest pins and digest refreshes (same tag, new build). Major/minor stay open for review.",
       "matchManagers": [
         "dockerfile",

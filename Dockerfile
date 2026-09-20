@@ -24,8 +24,9 @@
 # it since 7.3.0. For the newest OpenCloud, and to avoid the sync-abort bug on
 # slow (array or FUSE) storage, run the :rolling channel.
 #
-# Licensing: this wrapper (Dockerfile, scripts, banner) is AGPL-3.0-only; the
-# OpenCloud binary in the base image is Apache-2.0. See LICENSE and NOTICE.
+# Licensing: this wrapper (Dockerfile, scripts, banner, brandingd and the web
+# extension) is AGPL-3.0-only; the OpenCloud binary in the base image is
+# Apache-2.0. See LICENSE and NOTICE.
 
 # Floating upstream tags. BASE feeds `FROM ${BASE}`; BASE_ROLLING is a marker CI
 # extracts from this file to build the :rolling channel with
@@ -37,6 +38,38 @@ ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 # Static gosu for the privilege drop, copied from the upstream multi-arch image
 # so the build does not depend on the base image having apk or apt.
 FROM tianon/gosu:1.19 AS gosu
+
+# Base theme of the bundled OpenCloud version, for brandingd's dark-mode logo.
+# hadolint ignore=DL3006
+FROM --platform=$BUILDPLATFORM ${BASE} AS basetheme
+RUN opencloud version --skip-services > /tmp/opencloud-version \
+ && version="$(awk '/^Version:/ {print $2; exit}' /tmp/opencloud-version)" \
+ && for attempt in 1 2 3; do \
+        wget -q -O /tmp/base-theme.json "https://raw.githubusercontent.com/opencloud-eu/opencloud/v${version}/services/web/assets/themes/opencloud/theme.json" && break; \
+        echo "base theme download failed (attempt ${attempt} of 3)"; \
+        rm -f /tmp/base-theme.json; \
+        if [ "$attempt" -lt 3 ]; then sleep 5; fi; \
+    done \
+ && test -s /tmp/base-theme.json \
+ && grep -q '"themes"' /tmp/base-theme.json
+
+# brandingd and logintemplate are static, so they cross-compile on the build host.
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS brandingd
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+COPY branding/server/ ./
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/brandingd ./cmd/logintemplate
+
+# The web extension is plain JS and CSS, so one build serves every platform.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS brandingweb
+WORKDIR /src
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+COPY branding/web/package.json branding/web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY branding/web/ ./
+RUN pnpm build
 
 # hadolint ignore=DL3006
 FROM ${BASE}
@@ -57,11 +90,21 @@ COPY --from=gosu /gosu /usr/local/bin/gosu
 COPY entrypoint.sh print-banner.sh /usr/local/bin/
 COPY .github/assets/banner-raw.txt /usr/local/share/banner-raw.txt
 
+# Optional branding admin app (BRANDING_APP=true), installed by the entrypoint.
+COPY --from=brandingd /out/brandingd /usr/local/bin/brandingd
+COPY --from=brandingweb /src/dist/ /usr/local/share/opencloud-branding/app/
+COPY --from=basetheme /tmp/base-theme.json /usr/local/share/opencloud-branding/base-theme.json
+
+# The sign-in page names the hashed bundles of the binary it ships in, so the
+# copy that loads the branding script comes from that binary.
+RUN --mount=type=bind,from=brandingd,source=/out,target=/tmp/branding-build \
+    /tmp/branding-build/logintemplate /usr/bin/opencloud /usr/local/share/opencloud-branding/idp/identifier/index.html
+
 # A stray CR in the banner art would show up in the log. BusyBox in the base
 # provides tr and chmod, so no package manager is needed.
 RUN tr -d '\r' < /usr/local/share/banner-raw.txt > /usr/local/share/banner.txt \
  && rm /usr/local/share/banner-raw.txt \
- && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/print-banner.sh /usr/local/bin/gosu
+ && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/print-banner.sh /usr/local/bin/gosu /usr/local/bin/brandingd
 
 # OpenCloud config and data; the Unraid template bind-mounts these two paths.
 VOLUME ["/etc/opencloud", "/var/lib/opencloud"]

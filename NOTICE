@@ -1,14 +1,15 @@
 NOTICE - Bundled Software in the OpenCloud Unraid Wrapper Image
 ===============================================================
 
-The GNU Affero General Public License v3.0 (AGPL-3.0, see LICENSE) covers ONLY the wrapper assets in this
+The GNU Affero General Public License v3.0 (AGPL-3.0, see LICENSE) covers only the wrapper assets in this
 repository:
   * Dockerfile
   * entrypoint.sh and print-banner.sh
+  * branding/ (brandingd and the web extension)
   * Unraid container template (maintained in the junkerderprovinz/unraid-apps repo)
   * README, banner and icon artwork (see below for the logo attribution)
 
-It does NOT relicense any software shipped inside the resulting container
+It does not relicense any software shipped inside the resulting container
 image. Each bundled component retains its upstream license:
 
   * OpenCloud                    Apache-2.0
@@ -17,12 +18,23 @@ image. Each bundled component retains its upstream license:
                                  https://github.com/tianon/gosu
   * Alpine Linux base + packages various (MIT, BSD, GPL, ...)
                                  https://alpinelinux.org
+  * Go standard library          BSD-3-Clause
+    (built into brandingd)       https://go.dev/LICENSE
+  * Module Federation runtime    MIT
+    (in the web extension)       https://github.com/module-federation/core
+  * Tailwind CSS                 MIT
+    (in the web extension CSS)   https://github.com/tailwindlabs/tailwindcss
+
+While the branding app is on, OpenCloud serves its login page from
+/usr/local/share/opencloud-branding/idp/identifier/index.html. That file is
+OpenCloud's own identifier/index.html, copied from the opencloud binary at build
+time with one script tag added. It keeps OpenCloud's Apache-2.0 license.
 
 Brand artwork
 -------------
 The OpenCloud logo, wordmark and favicon in .github/assets/ are the property of
 OpenCloud GmbH and are used unmodified to identify the upstream project. They are
-NOT covered by this repository's AGPL-3.0 license and remain subject to OpenCloud's
+not covered by this repository's AGPL-3.0 license and remain subject to OpenCloud's
 trademark/brand terms. This is an independent, community-maintained packaging of
 OpenCloud for Unraid and is not affiliated with or endorsed by OpenCloud GmbH.
 

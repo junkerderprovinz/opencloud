@@ -2,7 +2,7 @@
 # One-click init and privilege drop for OpenCloud on Unraid.
 #
 # Runs as root (see `USER root` in the Dockerfile) so it can, in order:
-#   1. create the config/data dirs and heal their ownership for the target user
+#   1. create the config and data dirs and heal their ownership for the target user
 #   2. run `opencloud init` once as that user (writes the config on first boot)
 #   3. drop to PUID:PGID via gosu and exec `opencloud server`
 #
@@ -19,7 +19,7 @@ DATA_DIR="/var/lib/opencloud"
 SENTINEL="${DATA_DIR}/.uid-heal"
 
 if [ "$(id -u)" = "0" ]; then
-    # Run everything below dropped to the target user.
+    # Prefix for the commands that run as the target user.
     DROP="gosu ${PUID}:${PGID}"
 
     # On a fresh Unraid install the bind mounts arrive root-owned. Create them if
@@ -174,6 +174,148 @@ if [ "${_fts}" = "true" ] && [ -n "${TIKA_URL:-}" ]; then
     echo "[entrypoint] full-text search enabled: Apache Tika at ${TIKA_URL} (content indexing on for new/changed files)"
 elif [ "${_fts}" = "true" ]; then
     echo "[entrypoint] FULLTEXT_SEARCH=true but TIKA_URL is empty -> full-text search not enabled"
+fi
+
+# BRANDING_APP=true adds an admin-only "Branding" app to the web UI: the extension
+# in the apps folder, the proxy route /brandingsvc/ and brandingd on loopback.
+# Switching it off removes the editor and keeps the saved branding in effect.
+BRANDING_SHARE="/usr/local/share/opencloud-branding"
+BRANDING_APPS_DIR="${DATA_DIR}/web/assets/apps/branding"
+BRANDING_ASSETS="${DATA_DIR}/web/assets/themes/_branding"
+BRANDING_STATE="${DATA_DIR}/branding/state.json"
+BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
+BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
+_branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
+
+# Only a regular file whose first line is the marker is ours to rewrite or
+# remove, also after an editor on Windows saved it with CRLF or a BOM. A
+# symlink always counts as the user's own, so nothing is written through it.
+_own_proxy="false"
+if [ -L "${BRANDING_PROXY}" ]; then
+    _own_proxy="true"
+elif [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}" | tr -d '\r\357\273\277')" != "${BRANDING_PROXY_MARKER}" ]; then
+    _own_proxy="true"
+fi
+
+# OpenCloud drops the whole file when a top-level key appears twice, and it
+# only routes through the policy named default. The route counts when
+# endpoint, backend and unprotected sit in the same list item of that policy.
+if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
+    if [ -f "${BRANDING_PROXY}" ] && [ "$(awk '/^additional_policies:/ { n++ } END { print n + 0 }' "${BRANDING_PROXY}")" -gt 1 ]; then
+        echo "[entrypoint] WARNING: your own ${BRANDING_PROXY} has more than one additional_policies key, so OpenCloud ignores the whole file and the branding app stays off; merge them into one"
+        _branding="false"
+    elif [ -f "${BRANDING_PROXY}" ] && awk '
+        function item_end() { if (ep && be && un && policy == "default") found = 1; ep = 0; be = 0; un = 0 }
+        /^[[:space:]]*-[[:space:]]/ { item_end() }
+        /^[[:space:]]*(-[[:space:]]+)?name:/ {
+            policy = $0
+            sub(/^[[:space:]]*(-[[:space:]]+)?name:[[:space:]]*/, "", policy)
+            sub(/[[:space:]]*(#.*)?$/, "", policy)
+            gsub(/["\047]/, "", policy)
+        }
+        /^[[:space:]]*(-[[:space:]]+)?endpoint:[[:space:]]*["\047]?\/brandingsvc\/["\047]?[[:space:]]*(#.*)?$/ { ep = 1 }
+        /^[[:space:]]*(-[[:space:]]+)?backend:[[:space:]]*["\047]?http:\/\/127\.0\.0\.1:9299\/?["\047]?[[:space:]]*(#.*)?$/ { be = 1 }
+        /^[[:space:]]*(-[[:space:]]+)?unprotected:[[:space:]]*(true|True|TRUE)[[:space:]]*(#.*)?$/ { un = 1 }
+        END { item_end(); exit !found }
+    ' "${BRANDING_PROXY}"; then
+        echo "[entrypoint] branding app uses the /brandingsvc/ route from your ${BRANDING_PROXY}"
+    else
+        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${BRANDING_PROXY} has no /brandingsvc/ route in the default policy with unprotected: true, so the branding app stays off; add the route from the README"
+        _branding="false"
+    fi
+fi
+
+# The target user does the writing, so a symlink planted in a volume cannot
+# make root write outside it. If the install fails, the app stays off and
+# OpenCloud still starts.
+# shellcheck disable=SC2086
+if [ "${_branding}" = "true" ]; then
+    # Removing the directory itself drops a symlink instead of following it.
+    if ! { ${DROP} rm -rf "${BRANDING_APPS_DIR}" \
+        && ${DROP} mkdir -p "${BRANDING_APPS_DIR}" "${BRANDING_ASSETS}" "${DATA_DIR}/branding" \
+        && ${DROP} cp -R "${BRANDING_SHARE}/app/." "${BRANDING_APPS_DIR}/"; }; then
+        echo "[entrypoint] WARNING: could not install the branding app into ${BRANDING_APPS_DIR} as ${PUID}:${PGID}, so it stays off; if ${DATA_DIR}/web belongs to root, chown -R ${PUID}:${PGID} ${DATA_DIR}/web in the container fixes it"
+        _branding="false"
+    # mkdir -p passes on folders that root created by hand, and brandingd could
+    # not save into those.
+    elif ! ${DROP} test -w "${BRANDING_ASSETS}" || ! ${DROP} test -w "${DATA_DIR}/branding"; then
+        echo "[entrypoint] WARNING: ${BRANDING_ASSETS} or ${DATA_DIR}/branding is not writable for ${PUID}:${PGID}, so the branding app stays off; chown -R ${PUID}:${PGID} ${DATA_DIR}/web ${DATA_DIR}/branding in the container fixes it"
+        _branding="false"
+    elif [ "${_own_proxy}" = "false" ]; then
+        ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
+${BRANDING_PROXY_MARKER}
+additional_policies:
+  - name: default
+    routes:
+      - endpoint: /brandingsvc/
+        backend: http://127.0.0.1:9299
+        unprotected: true
+EOF
+    fi
+fi
+# shellcheck disable=SC2086
+if [ "${_branding}" != "true" ]; then
+    ${DROP} rm -rf "${BRANDING_APPS_DIR}" || echo "[entrypoint] WARNING: could not remove ${BRANDING_APPS_DIR}"
+    if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
+        ${DROP} rm -f "${BRANDING_PROXY}"
+        echo "[entrypoint] branding app off: removed the managed ${BRANDING_PROXY}"
+    fi
+fi
+
+# The saved themes list is a copy of the base theme, which a new image can
+# change. brandingd also moves a corrupt state.json aside and drops image names
+# it does not trust or cannot find, so the background below is read after it ran.
+if [ -f "${BRANDING_STATE}" ]; then
+    # shellcheck disable=SC2086
+    if BRANDING_DATA_DIR="${DATA_DIR}" ${DROP} /usr/local/bin/brandingd -regenerate; then
+        echo "[entrypoint] saved branding regenerated for this image's base theme"
+    else
+        echo "[entrypoint] WARNING: brandingd -regenerate exited with $?, saved branding left as it was"
+    fi
+fi
+
+# Any IDP_LOGIN_BACKGROUND_URL hides OpenCloud's login artwork, so it needs a saved image.
+_bg_file=""
+if [ -f "${BRANDING_STATE}" ]; then
+    _bg_file="$(sed -n 's/^  "background": "\([^"]*\)".*/\1/p' "${BRANDING_STATE}")"
+    case "${_bg_file}" in
+        *[!a-z0-9.-]*) _bg_file="" ;;
+    esac
+    if [ -n "${_bg_file}" ] && [ ! -f "${BRANDING_ASSETS}/${_bg_file}" ]; then
+        echo "[entrypoint] WARNING: the saved login background ${_bg_file} is missing, so the login page keeps OpenCloud's own"
+        _bg_file=""
+    fi
+fi
+
+if [ "${_branding}" = "true" ]; then
+    # A file under IDP_ASSET_PATH replaces the IDP's embedded one. The image's
+    # sign-in page loads login.js, which applies the saved branding on every
+    # load, so IDP_LOGIN_BACKGROUND_URL stays unset.
+    if [ -z "${IDP_ASSET_PATH:-}" ]; then
+        export IDP_ASSET_PATH="${BRANDING_SHARE}/idp"
+    else
+        echo "[entrypoint] IDP_ASSET_PATH is set, so the login page keeps OpenCloud's title, footer and favicon, and adding or removing the login background needs a restart"
+        if [ -n "${_bg_file}" ]; then
+            export IDP_LOGIN_BACKGROUND_URL="/brandingsvc/login-background"
+        fi
+    fi
+    # OpenCloud reads PROXY_TLS with strconv.ParseBool, so these all mean false.
+    case "${PROXY_TLS}" in
+        0 | f | F | false | FALSE | False) _scheme="http" ;;
+        *) _scheme="https" ;;
+    esac
+    # brandingd reaches OpenCloud through the proxy, on whatever port it listens.
+    _proxy_addr="${PROXY_HTTP_ADDR:-0.0.0.0:9200}"
+    # shellcheck disable=SC2086
+    BRANDING_OPENCLOUD_URL="${_scheme}://127.0.0.1:${_proxy_addr##*:}" \
+    BRANDING_DATA_DIR="${DATA_DIR}" \
+        ${DROP} sh -c 'while :; do
+            /usr/local/bin/brandingd || echo "[entrypoint] brandingd exited with $?, restarting in 5s"
+            sleep 5
+        done' &
+    echo "[entrypoint] branding admin app enabled (app menu -> Branding, admins only)"
+elif [ -n "${_bg_file}" ]; then
+    export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"
 fi
 
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes

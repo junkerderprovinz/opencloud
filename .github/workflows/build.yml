@@ -216,12 +216,15 @@ jobs:
           # With the app off, /brandingsvc/ falls through to the web UI.
           up() {
             curl -skf --max-time 20 -o /dev/null "$base/status.php" || return 1
+            # The IDP registers with the proxy after status.php answers, and the
+            # checks below read the sign-in page.
+            curl -skf --max-time 20 -o /dev/null "$base/signin/v1/identifier" || return 1
             [ "$1" = false ] || [ "$(curl -skf --max-time 20 "$base/brandingsvc/health")" = ok ]
           }
           wait_up() {
             local deadline=$((SECONDS + 180))
             until up "$1"; do
-              [ "$SECONDS" -lt "$deadline" ] || { echo "OpenCloud or brandingd did not come up within 180s"; return 1; }
+              [ "$SECONDS" -lt "$deadline" ] || { echo "OpenCloud, its sign-in page or brandingd did not come up within 180s"; return 1; }
               sleep 3
             done
           }

@@ -286,7 +286,7 @@ jobs:
           grep -q '<rect' stored.svg
 
           echo "== login page data without a restart =="
-          fetch "$base/brandingsvc/login.json" | jq -e '. == {name: "", slogan: "", background: "", favicon: ""}'
+          fetch "$base/brandingsvc/login.json" | jq -e '. == {name: "", slogan: "", background: "", favicon: "", theme: ""}'
           expect 200 "${admin[@]}" -X PUT -H 'Content-Type: application/json' --data '{"name":"Smoke Cloud","slogan":"Checked in CI"}' "$base/brandingsvc/api/text"
           expect 200 "${admin[@]}" -X PUT --data-binary @logo.png "$base/brandingsvc/api/image/background"
           bg=$(fetch "${admin[@]}" "$base/brandingsvc/api/state" | jq -r '.background')
@@ -294,6 +294,12 @@ jobs:
           fetch "$base/brandingsvc/login.json" | jq -e --arg bg "$bg" '.name == "Smoke Cloud" and .slogan == "Checked in CI" and .background == $bg'
           fetch "$base$bg" -o background.png
           cmp logo.png background.png
+
+          echo "== sign-in card theme =="
+          expect 200 "${admin[@]}" -X PUT -H 'Content-Type: application/json' --data '{"loginTheme":"dark"}' "$base/brandingsvc/api/login-theme"
+          fetch "$base/brandingsvc/login.json" | jq -e '.theme == "dark"'
+          expect 400 "${admin[@]}" -X PUT -H 'Content-Type: application/json' --data '{"loginTheme":"neon"}' "$base/brandingsvc/api/login-theme"
+          fetch "$base/brandingsvc/login.js" | grep -q 'prefers-color-scheme'
 
           echo "== app off, branding kept =="
           start false

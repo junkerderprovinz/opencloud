@@ -25,6 +25,31 @@
     }
   }
 
+  // The sign-in page is light only, so a dark card is a sheet of our own in
+  // the colours the web UI uses for its dark theme. It goes last in the head,
+  // after the page's own stylesheet.
+  const darkCard = `
+.oc-card { background: #1d2021; color: #e1e3e4; color-scheme: dark; }
+.oc-card a { color: #5cd5fb; }
+.oc-card .oc-input { background: #111415; border-color: #8a9296; color: #e1e3e4; }
+.oc-card .oc-input::placeholder { color: #bfc8cc; }
+.oc-card .oc-input:focus { border-color: #5cd5fb; }
+.oc-card .oc-input.error { border-color: #ffb4ab; }
+.oc-card .oc-input:-webkit-autofill { -webkit-text-fill-color: #e1e3e4; box-shadow: 0 0 0 1000px #111415 inset; caret-color: #e1e3e4; }
+.oc-card .MuiTypography-colorError { color: #ffb4ab !important; }
+.oc-card .oc-button-secondary { background: #323537 !important; color: #e1e3e4 !important; }
+`
+
+  const applyCard = (mode) => {
+    if (mode !== 'dark' && mode !== 'auto') {
+      return
+    }
+    const sheet = document.createElement('style')
+    sheet.setAttribute('data-branding', '')
+    sheet.textContent = mode === 'auto' ? `@media (prefers-color-scheme: dark) {${darkCard}}` : darkCard
+    document.head.append(sheet)
+  }
+
   const apply = (b) => {
     if (b.name) {
       document.title = `Sign in - ${b.name}`
@@ -54,7 +79,11 @@
   fetch('/brandingsvc/login.json', { cache: 'no-store' })
     .then((response) => (response.ok ? response.json() : null))
     .then((b) => {
-      if (!b || !(b.name || b.slogan || b.background || b.favicon)) {
+      if (!b) {
+        return
+      }
+      applyCard(b.theme)
+      if (!(b.name || b.slogan || b.background || b.favicon)) {
         return
       }
       apply(b)

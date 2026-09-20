@@ -2,6 +2,9 @@ import type { HttpClient } from '@opencloud-eu/web-pkg'
 
 export type ImageKind = 'logo' | 'logo-dark' | 'favicon' | 'background'
 
+// An empty login theme is OpenCloud's own light card.
+export type LoginTheme = '' | 'dark' | 'auto'
+
 export interface BrandingState {
   name: string
   slogan: string
@@ -9,6 +12,7 @@ export interface BrandingState {
   logoDark: string
   favicon: string
   background: string
+  loginTheme: LoginTheme
 }
 
 export type BrandingHttp = Pick<HttpClient, 'get' | 'put' | 'request'>
@@ -64,6 +68,9 @@ export function brandingApi(http: BrandingHttp) {
     },
     async saveText(name: string, slogan: string) {
       return stateOf(await http.put<BrandingState>(`${base}/text`, { name, slogan }, { headers }))
+    },
+    async saveLoginTheme(loginTheme: LoginTheme) {
+      return stateOf(await http.put<BrandingState>(`${base}/login-theme`, { loginTheme }, { headers }))
     },
     // The format is left to the server, which reads the content; the browser only guesses from the name.
     async uploadImage(kind: ImageKind, file: Blob) {

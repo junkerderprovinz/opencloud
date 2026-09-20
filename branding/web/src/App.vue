@@ -38,6 +38,25 @@
           {{ $gettext('Save') }}
         </oc-button>
       </section>
+      <section>
+        <h2 class="ext:mt-0 ext:mb-2 ext:text-lg ext:font-semibold" v-text="$gettext('Login page')" />
+        <p
+          class="ext:mt-0 ext:mb-3 ext:text-sm"
+          v-text="$gettext('The look of the sign-in card, for everyone who signs in.')"
+        />
+        <!-- oc-radio types its model as a boolean, so Vue would read an empty option as true. -->
+        <div class="ext:flex ext:flex-col ext:gap-2">
+          <oc-radio
+            v-for="card in cards"
+            :key="card.value"
+            :model-value="loginTheme || 'light'"
+            :option="card.value || 'light'"
+            :label="card.label"
+            :disabled="busy"
+            @update:model-value="chooseCard(card.value)"
+          />
+        </div>
+      </section>
       <image-section
         v-for="image in images"
         :key="image.kind"
@@ -63,7 +82,7 @@ import {
   useMessages,
   useThemeStore
 } from '@opencloud-eu/web-pkg'
-import { brandingApi, failureOf, type Failure, type ImageKind } from './api'
+import { brandingApi, failureOf, type Failure, type ImageKind, type LoginTheme } from './api'
 import { failureText } from './feedback'
 import ImageSection from './ImageSection.vue'
 import { previewOf } from './preview'
@@ -71,12 +90,13 @@ import { reloadTheme } from './reloadTheme'
 import { useBranding } from './useBranding'
 
 type ImageSlot = { kind: ImageKind; label: string }
+type CardChoice = { value: LoginTheme; label: string }
 
 const { $gettext } = useGettext()
 const { showMessage, showErrorMessage } = useMessages()
 const themeStore = useThemeStore()
 const branding = useBranding(brandingApi(useClientService().httpAuthenticated), reloadTheme)
-const { state, name, slogan, busy, textChanged } = branding
+const { state, name, slogan, loginTheme, busy, textChanged } = branding
 const loadFailure = ref<Failure>()
 const changing = ref<ImageKind>()
 
@@ -85,6 +105,12 @@ const images: ImageSlot[] = [
   { kind: 'logo-dark', label: $gettext('Logo for dark mode') },
   { kind: 'favicon', label: $gettext('Favicon') },
   { kind: 'background', label: $gettext('Login background') }
+]
+
+const cards: CardChoice[] = [
+  { value: '', label: $gettext('Light, the OpenCloud default') },
+  { value: 'dark', label: $gettext('Dark') },
+  { value: 'auto', label: $gettext('Follow the browser') }
 ]
 
 async function report(change: Promise<boolean>, done: string, failed: string, kind?: ImageKind) {
@@ -108,6 +134,13 @@ async function saveText() {
     document.getElementById('branding-name').focus()
   }
 }
+
+const chooseCard = (card: LoginTheme) =>
+  report(
+    branding.saveLoginTheme(card),
+    $gettext('Login page saved'),
+    $gettext('Login page could not be saved')
+  )
 
 const upload = (image: ImageSlot, file: File) =>
   report(

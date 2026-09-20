@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { BrandingApi, BrandingState } from '../../src/api'
+import type { BrandingApi, BrandingState, LoginTheme } from '../../src/api'
 import { useBranding } from '../../src/useBranding'
 
 const saved: BrandingState = {
@@ -8,13 +8,15 @@ const saved: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: ''
+  background: '',
+  loginTheme: ''
 }
 
 function fakeApi(): BrandingApi {
   return {
     state: vi.fn(async () => saved),
     saveText: vi.fn(async (name: string, slogan: string) => ({ ...saved, name: name.trim(), slogan: slogan.trim() })),
+    saveLoginTheme: vi.fn(async (loginTheme: LoginTheme) => ({ ...saved, loginTheme })),
     uploadImage: vi.fn(async () => ({ ...saved, logo: '/themes/_branding/logo-1a2b3c.png' })),
     clearImage: vi.fn(async () => saved)
   }
@@ -99,6 +101,42 @@ describe('useBranding', () => {
     await branding.load()
 
     await expect(branding.clearImage('favicon')).resolves.toBe(true)
+  })
+
+  it('saves the login card without waiting for a theme the sign-in page does not use', async () => {
+    const reloadTheme = vi.fn(reloadThemeOk)
+    const branding = useBranding(fakeApi(), reloadTheme)
+    await branding.load()
+
+    await expect(branding.saveLoginTheme('dark')).resolves.toBe(true)
+
+    expect(branding.loginTheme.value).toBe('dark')
+    expect(branding.state.value.loginTheme).toBe('dark')
+    expect(reloadTheme).not.toHaveBeenCalled()
+  })
+
+  it('goes back to the saved login card when the save fails', async () => {
+    const api = fakeApi()
+    const refused = Object.assign(new Error('status 403'), { response: { status: 403 } })
+    vi.mocked(api.saveLoginTheme).mockRejectedValueOnce(refused)
+    const branding = useBranding(api, reloadThemeOk)
+    await branding.load()
+
+    await expect(branding.saveLoginTheme('auto')).rejects.toBe(refused)
+
+    expect(branding.loginTheme.value).toBe('')
+    expect(branding.busy.value).toBe(false)
+  })
+
+  it('shows a login card saved elsewhere once another change brings it along', async () => {
+    const api = fakeApi()
+    vi.mocked(api.clearImage).mockResolvedValueOnce({ ...saved, loginTheme: 'dark' })
+    const branding = useBranding(api, reloadThemeOk)
+    await branding.load()
+
+    await branding.clearImage('logo')
+
+    expect(branding.loginTheme.value).toBe('dark')
   })
 
   it('passes a failed save on and is ready for the next change', async () => {

@@ -14,7 +14,8 @@ const state: BrandingState = {
   logo: '',
   logoDark: '',
   favicon: '',
-  background: ''
+  background: '',
+  loginTheme: ''
 }
 
 describe('brandingApi', () => {
@@ -40,15 +41,24 @@ describe('brandingApi', () => {
     const { api, sent } = recordingApi()
     await api.state()
     await api.saveText('Knight Cloud', 'Files, forged')
+    await api.saveLoginTheme('dark')
     await api.uploadImage('logo', file('x'))
     await api.clearImage('favicon')
 
     expect(sent.map(({ method, url, branding }) => [method, url, branding])).toEqual([
       ['get', 'brandingsvc/api/state', '1'],
       ['put', 'brandingsvc/api/text', '1'],
+      ['put', 'brandingsvc/api/login-theme', '1'],
       ['put', 'brandingsvc/api/image/logo', '1'],
       ['delete', 'brandingsvc/api/image/favicon', '1']
     ])
+  })
+
+  it('sends the login card as JSON', async () => {
+    const { api, sent } = recordingApi()
+    await api.saveLoginTheme('auto')
+
+    expect(JSON.parse(sent[0].data as string)).toEqual({ loginTheme: 'auto' })
   })
 
   it('sends name and slogan as JSON', async () => {
@@ -103,6 +113,7 @@ describe('brandingApi', () => {
     const calls = [
       () => api.state(),
       () => api.saveText('Knight Cloud', 'Files, forged'),
+      () => api.saveLoginTheme('dark'),
       () => api.uploadImage('logo', file('x')),
       () => api.clearImage('logo')
     ]

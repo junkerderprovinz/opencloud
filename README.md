@@ -272,16 +272,19 @@ Set **Branding admin app** (`BRANDING_APP`, in the advanced view of the template
 - a logo, plus an optional one for dark mode (without it, dark mode uses the logo)
 - the favicon
 - the background of the login page
+- whether the sign-in card is light, dark, or follows the browser
 
 In the web UI, the name appears in the browser tab and the slogan on public link pages and the sign-out page. On the login page, the name goes into the tab title, and name and slogan replace OpenCloud's in the footer. With a name and no slogan, the footer shows only the name. The login page also shows your logo and favicon.
+
+OpenCloud's sign-in card is white. Under **Login page** you can turn it dark in the colours of the web UI's dark theme, or let it follow the visitor's browser setting. The background behind the card stays as it is either way.
 
 Images can be PNG, JPEG, GIF, WebP or SVG, up to 5 MB for each logo, 2 MB for the favicon and 25 MB for the background. SVG files are rebuilt on upload from shapes, paths, text, groups, symbols, gradients, masks, clip paths and embedded images, with their styling in attributes or `style=`. The rebuild drops `<style>` blocks, filters, patterns, markers and anything that could run code, so export logos with presentation attributes rather than CSS classes, or their colours are lost. An SVG has to be UTF-8 without DOCTYPE entities. One that would freeze the browser, such as masks nested in masks or references that loop back on themselves, is refused.
 
 To upload an image, click its preview in the app. The menu next to its heading also resets it to the OpenCloud default. Saved changes need no restart: the app updates the page you have open, and every other page, the login page included, picks them up on its next load. Only switching `BRANDING_APP` on or off needs a container restart.
 
-If you set `IDP_ASSET_PATH` yourself, the wrapper leaves it alone, and the app does not change the login page's title, footer or favicon. The page still shows your logo and background, but it learns only at container start whether there is a background, so adding the first one or removing it again needs a restart. The wrapper looks only at the environment variable: while the app is on, its own `IDP_ASSET_PATH` wins over an asset path in `/etc/opencloud/idp.yaml`, so set yours through the variable.
+If you set `IDP_ASSET_PATH` yourself, the wrapper leaves it alone, and the app does not change the login page's title, footer, favicon or card. The page still shows your logo and background, but it learns only at container start whether there is a background, so adding the first one or removing it again needs a restart. The wrapper looks only at the environment variable: while the app is on, its own `IDP_ASSET_PATH` wins over an asset path in `/etc/opencloud/idp.yaml`, so set yours through the variable.
 
-Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. The login page then keeps your logo and background, and its title, footer and favicon go back to OpenCloud's. To go back to the OpenCloud defaults, reset the fields in the app first.
+Switching `BRANDING_APP` back to `false` removes the app but keeps your branding. The login page then keeps your logo and background, and its title, footer, favicon and white card go back to OpenCloud's. To go back to the OpenCloud defaults, reset the fields in the app first.
 
 Before you go back to an image without the app, set `BRANDING_APP=false` and start the container once so it removes the app and the managed `proxy.yaml`. An older image leaves both behind: **Branding** stays in the app menu, and its page cannot load. Your name, slogan, logos and favicon carry over to the web UI, but the login page keeps only the logo. If you already switched, delete `/var/lib/opencloud/web/assets/apps/branding` by hand, and `/etc/opencloud/proxy.yaml` too if it starts with `# managed by the opencloud Unraid wrapper`.
 

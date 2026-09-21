@@ -15,8 +15,8 @@ importers:
         specifier: ^7.0.0
         version: 7.4.0
       '@opencloud-eu/web-client':
-        specifier: ^7.0.0
-        version: 7.4.0(debug@4.4.3)
+        specifier: ^8.0.0
+        version: 8.0.0(debug@4.4.3)
       '@opencloud-eu/web-pkg':
         specifier: ^7.0.0
         version: 7.4.0(@floating-ui/dom@1.8.0)(@tiptap/extension-code-block@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@tiptap/extension-list@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@tiptap/extensions@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@vue/compiler-sfc@3.5.42)(@vue/devtools-api@8.2.1)(debug@4.4.3)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(rolldown@1.2.9)(typescript@6.0.3)(vite@8.3.0(@types/node@22.20.3)(jiti@2.7.0))(vue@3.5.42(typescript@6.0.3))
@@ -211,6 +211,9 @@ packages:
 
   '@opencloud-eu/web-client@7.4.0':
     resolution: {integrity: sha512-o1ENohQCo0pZXoxt+1IPG7SUssljJiWPbfugDq7CsdNMRLKCnW9xnDJ1H9DW5SJgrUnF0PU7CRqATznYHDgTjg==}
+
+  '@opencloud-eu/web-client@8.0.0':
+    resolution: {integrity: sha512-mEuPrrqneX6He552XBaztXAvN1WBDzt5Gis9PMxpOK0p3YcJsEYXIkefAHaRDiwt581pKTfjDW9qm3x/U/zmfw==}
 
   '@opencloud-eu/web-pkg@7.4.0':
     resolution: {integrity: sha512-hikbACnm63+3B3AtKKvfOq3A54uCINUrHP5BU1IKKhiaKgjWQNjIWovKAoNvPHDrDPUZCUZVUBVIaZ2rQYXiYA==}
@@ -2540,6 +2543,21 @@ snapshots:
   '@opencloud-eu/tsconfig@7.4.0': {}
 
   '@opencloud-eu/web-client@7.4.0(debug@4.4.3)':
+    dependencies:
+      '@casl/ability': 7.0.1
+      '@microsoft/fetch-event-source': 2.0.1
+      axios: 1.20.0(debug@4.4.3)
+      fast-xml-parser: 5.11.1
+      lodash-es: 4.18.1
+      luxon: 3.7.2
+      uuid: 14.0.2
+      webdav: 5.9.0
+      zod: 4.6.5
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
+  '@opencloud-eu/web-client@8.0.0(debug@4.4.3)':
     dependencies:
       '@casl/ability': 7.0.1
       '@microsoft/fetch-event-source': 2.0.1

@@ -54,7 +54,7 @@ RUN opencloud version --skip-services > /tmp/opencloud-version \
  && grep -q '"themes"' /tmp/base-theme.json
 
 # brandingd and logintemplate are static, so they cross-compile on the build host.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS brandingd
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS brandingd
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

@@ -37,7 +37,7 @@ ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 
 # Static gosu for the privilege drop, copied from the upstream multi-arch image
 # so the build does not depend on the base image having apk or apt.
-FROM tianon/gosu:1.19 AS gosu
+FROM tianon/gosu:1.19@sha256:5afac3970da83806ba3d7789a3a42da92fbe4f703d94984c601e183208d035d3 AS gosu
 
 # Base theme of the bundled OpenCloud version, for brandingd's dark-mode logo.
 # hadolint ignore=DL3006

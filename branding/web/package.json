@@ -14,7 +14,7 @@
     "@opencloud-eu/extension-sdk": "7.4.0",
     "@opencloud-eu/tsconfig": "^7.0.0",
     "@opencloud-eu/web-client": "^7.0.0",
-    "@opencloud-eu/web-pkg": "^7.0.0",
+    "@opencloud-eu/web-pkg": "^8.0.0",
     "@vue/test-utils": "^2.5.1",
     "happy-dom": "^20.0.0",
     "typescript": "^6.0.3",

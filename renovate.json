@@ -100,6 +100,18 @@
         "typescript"
       ],
       "allowedVersions": "<7"
+    },
+    {
+      "description": "The branding extension runs inside both images, and the production one (opencloudeu/opencloud) is still on OpenCloud 7",
+      "matchFileNames": [
+        "branding/web/package.json"
+      ],
+      "matchPackageNames": [
+        "@opencloud-eu/extension-sdk",
+        "@opencloud-eu/web-client",
+        "@opencloud-eu/web-pkg"
+      ],
+      "allowedVersions": "<8"
     }
   ]
 }

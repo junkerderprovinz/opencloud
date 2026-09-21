@@ -90,6 +90,16 @@
       "labels": [
         "docker"
       ]
+    },
+    {
+      "description": "vue-tsc loads TypeScript through its JavaScript API, which the native TypeScript 7 does not ship",
+      "matchFileNames": [
+        "branding/web/package.json"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7"
     }
   ]
 }

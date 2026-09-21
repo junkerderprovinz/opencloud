@@ -19,7 +19,7 @@
     "happy-dom": "^20.0.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.3",
-    "vitest": "^4.1.1",
+    "vitest": "^5.0.0",
     "vue": "^3.5.0",
     "vue-tsc": "^3.2.6",
     "vue3-gettext": "4.0.1"

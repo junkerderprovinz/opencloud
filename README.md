@@ -365,7 +365,7 @@ opencloud search index --all-spaces --force-rescan --insecure
 What damages the index is not known yet. Killing the server in the middle of indexing, hundreds of times, did not reproduce it. If it happens to you, please open an issue and attach the file list of the `.broken` folder together with its `store/root.bolt`, which holds the list of index files and no file contents:
 
 ```bash
-ls -la --time-style=full-iso /var/lib/opencloud/search/bleve-v5.broken/store
+stat -c '%y %s %n' /var/lib/opencloud/search/bleve-v5.broken/store/*
 ```
 
 A Data folder from another install or storage backend (local vs S3) is a different matter. Those layouts are not interchangeable and there is no in-place migration between backends, so give the container a fresh, empty Data folder and re-upload the files through the web UI.

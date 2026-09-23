@@ -246,8 +246,9 @@ The entrypoint runs as root only long enough to prepare the volumes, then drops 
 
 1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel, so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
 2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#7-branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
-3. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
-4. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
+3. **Search index check.** A bleve search index that OpenCloud cannot open would make the `search` service fail five times, and then the whole server stops. `searchindex` reads each index the way bleve loads it, and moves one that would fail to `<name>.broken`, so the service starts with a new, empty index. When a new index appears on data that already had one (after that move, or when an image update changes the index schema), the entrypoint indexes all spaces again in the background once the server is up. See [§10](#10-troubleshooting).
+4. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
+5. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
 <br>
 
@@ -351,11 +352,19 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 ## 10. Troubleshooting
 
-### Crash loop with `search: cannot open index, metadata missing`
+### The log says `search index ... moved it to bleve-v5.broken`
 
-The container starts, heals ownership, then crash-loops and the WebUI never comes up. This means the **Data** volume is pointing at a **non-fresh** OpenCloud/oCIS data directory: an old install, or a data set created with a different storage backend (local vs S3). The layouts are not interchangeable and there is **no in-place migration between backends**, so the `search` service can't open its index and takes the whole server down.
+OpenCloud's search index was damaged, most likely by a shutdown that did not finish in time. Older images showed this as `error parsing mapping JSON`, `unable to load snapshot` or `metadata missing` in the log, and the `search` service then failed five times and took the whole server down. The wrapper moved the damaged index aside, OpenCloud started with a new one, and the wrapper then indexed all spaces again. `filling the new search index` and `search index rebuilt` in the log mark the start and the end of that run. Until it finishes, search misses some files, and with many files that can take a while.
 
-Fix: give it a **fresh, empty Data folder**. Move the old directory aside (`mv /mnt/user/opencloud /mnt/user/opencloud.old`) and let a new empty one be created, then restart. To keep old files, start fresh and re-upload them through the web UI. This is not a bug in the wrapper or the image. A clean data dir boots normally, S3 included.
+The `.broken` folder under `search/` in your Data folder is only kept for inspection and can be deleted. If the log says `indexing the spaces failed`, the run is repeated on the next start, or you can start it yourself in the container console:
+
+```bash
+opencloud search index --all-spaces --force-rescan --insecure
+```
+
+To make a damaged index less likely, give the server time to stop. Unraid kills a container that has not stopped after **Settings → Docker → Docker Stop Timeout** seconds, 10 by default, and uses that value for every stop and update, whatever the container's own `--stop-timeout` says. 60 leaves OpenCloud enough time to write its index.
+
+A Data folder from another install or storage backend (local vs S3) is a different matter. Those layouts are not interchangeable and there is no in-place migration between backends, so give the container a fresh, empty Data folder and re-upload the files through the web UI.
 
 ### A WebDAV client gets `401 Unauthorized` with an app token that is definitely correct
 

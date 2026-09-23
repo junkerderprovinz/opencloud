@@ -318,6 +318,75 @@ elif [ -n "${_bg_file}" ]; then
     export IDP_LOGIN_BACKGROUND_URL="/themes/_branding/${_bg_file}"
 fi
 
+# A bleve index that cannot be opened fails the search service five times, and
+# the supervisor then stops the whole server (issue #31). searchindex moves such
+# an index to <name>.broken, so the service starts on a fresh, empty one.
+SEARCH_DIR="${SEARCH_ENGINE_BLEVE_DATA_PATH:-${OC_BASE_DATA_PATH:-${DATA_DIR}}/search}"
+SEARCH_PENDING="${SEARCH_DIR}/.reindex-pending"
+# shellcheck disable=SC2086
+if ! _moved="$(${DROP} /usr/local/bin/searchindex "${SEARCH_DIR}")"; then
+    echo "[entrypoint] WARNING: could not check the search index in ${SEARCH_DIR}"
+fi
+if [ -n "${_moved}" ]; then
+    printf '%s\n' "${_moved}" | sed 's/^/[entrypoint] search index /'
+fi
+
+_index_dirs() {
+    for _d in "${SEARCH_DIR}"/bleve "${SEARCH_DIR}"/bleve-v*; do
+        case "${_d}" in
+            *.broken) ;;
+            *) if [ -d "${_d}" ]; then printf '%s ' "${_d##*/}"; fi ;;
+        esac
+    done
+}
+_indexes_before="$(_index_dirs)"
+
+_new_index() {
+    for _d in $(_index_dirs); do
+        case " ${_indexes_before} " in
+            *" ${_d} "*) ;;
+            *) return 0 ;;
+        esac
+    done
+    return 1
+}
+
+# The search service creates a missing index empty. When it does so on data that
+# already had an index, because one was moved aside above or a new image changed
+# the index schema, every space is indexed again once the service answers. The
+# pending marker carries an unfinished run over to the next start.
+if [ -f "${SEARCH_PENDING}" ] || [ -n "${_indexes_before}${_moved}" ]; then
+    # shellcheck disable=SC2086
+    (
+        if [ ! -f "${SEARCH_PENDING}" ]; then
+            _i=0
+            until _new_index; do
+                _i=$((_i + 1))
+                if [ "${_i}" -gt 120 ]; then exit 0; fi
+                sleep 5
+            done
+            ${DROP} touch "${SEARCH_PENDING}"
+        fi
+        echo "[entrypoint] filling the new search index, indexing all spaces in the background"
+        _i=0
+        while :; do
+            _start="$(date +%s)"
+            if ${DROP} opencloud search index --all-spaces --force-rescan --insecure </dev/null; then
+                ${DROP} rm -f "${SEARCH_PENDING}"
+                echo "[entrypoint] search index rebuilt"
+                break
+            fi
+            # A quick failure means the search service does not answer yet.
+            _i=$((_i + 1))
+            if [ $(($(date +%s) - _start)) -gt 60 ] || [ "${_i}" -ge 20 ]; then
+                echo "[entrypoint] WARNING: indexing the spaces failed, it is tried again on the next start; to run it by hand: opencloud search index --all-spaces --force-rescan --insecure"
+                break
+            fi
+            sleep 15
+        done
+    ) &
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. On later boots the file exists and init exits non-zero,
 # which is ignored.

@@ -11,6 +11,8 @@
 #   * heals bind-mount ownership so root-created appdata becomes writable
 #   * honours Unraid's PUID / PGID (default 99:100 = nobody:users) and drops
 #     privileges to that user for the server via a static, dependency-free gosu
+#   * moves a search index the server cannot open aside and rebuilds it, where
+#     OpenCloud would stop altogether
 #
 # Two channels, selected with --build-arg BASE=...:
 #   :production  ->  opencloudeu/opencloud:latest          (default, BASE below)
@@ -61,6 +63,14 @@ WORKDIR /src
 COPY branding/server/ ./
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/brandingd ./cmd/logintemplate
 
+# searchindex sets aside a search index the server cannot open, see the entrypoint.
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:8a5910f31396cd4d89662f56c68b3ae31d374308270a1c3bd96672ee5ed43414 AS searchindex
+ARG TARGETOS
+ARG TARGETARCH
+WORKDIR /src
+COPY searchindex/ ./
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/searchindex .
+
 # The web extension is plain JS and CSS, so one build serves every platform.
 FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1 AS brandingweb
 WORKDIR /src
@@ -87,6 +97,7 @@ LABEL org.opencontainers.image.title="opencloud (Unraid wrapper)" \
       org.opencontainers.image.vendor="junkerderprovinz"
 
 COPY --from=gosu /gosu /usr/local/bin/gosu
+COPY --from=searchindex /out/searchindex /usr/local/bin/searchindex
 COPY entrypoint.sh print-banner.sh /usr/local/bin/
 COPY .github/assets/banner-raw.txt /usr/local/share/banner-raw.txt
 
@@ -104,7 +115,7 @@ RUN --mount=type=bind,from=brandingd,source=/out,target=/tmp/branding-build \
 # provides tr and chmod, so no package manager is needed.
 RUN tr -d '\r' < /usr/local/share/banner-raw.txt > /usr/local/share/banner.txt \
  && rm /usr/local/share/banner-raw.txt \
- && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/print-banner.sh /usr/local/bin/gosu /usr/local/bin/brandingd
+ && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/print-banner.sh /usr/local/bin/gosu /usr/local/bin/brandingd /usr/local/bin/searchindex
 
 # OpenCloud config and data; the Unraid template bind-mounts these two paths.
 VOLUME ["/etc/opencloud", "/var/lib/opencloud"]

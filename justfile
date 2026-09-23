@@ -59,7 +59,7 @@ run:
         -v "$PWD/.dev-config:/etc/opencloud" -v "$PWD/.dev-data:/var/lib/opencloud" {{IMAGE}}
 
 # All lint checks, as in lint.yml.
-lint: hadolint shellcheck test-branding build-branding-web
+lint: hadolint shellcheck test-branding test-searchindex build-branding-web
 
 # Hadolint the Dockerfile, failing on warnings like CI.
 hadolint:
@@ -72,6 +72,10 @@ shellcheck:
 # gofmt, vet and tests for brandingd.
 test-branding:
     cd branding/server && { test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }; } && go vet ./... && go test ./...
+
+# gofmt, vet and tests for searchindex.
+test-searchindex:
+    cd searchindex && { test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }; } && go vet ./... && go test ./...
 
 # Type check, test and build the web extension; OpenCloud 7.2 lacks web-client/ox.
 build-branding-web:

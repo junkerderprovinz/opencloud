@@ -6,6 +6,7 @@ repository:
   * Dockerfile
   * entrypoint.sh and print-banner.sh
   * branding/ (brandingd and the web extension)
+  * searchindex/ (the search index check)
   * Unraid container template (maintained in the junkerderprovinz/unraid-apps repo)
   * README, banner and icon artwork (see below for the logo attribution)
 
@@ -20,6 +21,10 @@ image. Each bundled component retains its upstream license:
                                  https://alpinelinux.org
   * Go standard library          BSD-3-Clause
     (built into brandingd)       https://go.dev/LICENSE
+  * bbolt                        MIT
+    (built into searchindex)     https://github.com/etcd-io/bbolt
+  * golang.org/x/sys             BSD-3-Clause
+    (built into searchindex)     https://cs.opensource.google/go/x/sys
   * Module Federation runtime    MIT
     (in the web extension)       https://github.com/module-federation/core
   * Tailwind CSS                 MIT

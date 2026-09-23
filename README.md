@@ -354,7 +354,7 @@ On Unraid: **Docker** tab → the container → **Force Update**. Your `/etc/ope
 
 ### The log says `search index ... moved it to bleve-v5.broken`
 
-OpenCloud's search index was damaged, most likely by a shutdown that did not finish in time. Older images showed this as `error parsing mapping JSON`, `unable to load snapshot` or `metadata missing` in the log, and the `search` service then failed five times and took the whole server down. The wrapper moved the damaged index aside, OpenCloud started with a new one, and the wrapper then indexed all spaces again. `filling the new search index` and `search index rebuilt` in the log mark the start and the end of that run. Until it finishes, search misses some files, and with many files that can take a while.
+OpenCloud's search index was damaged: a file it needs was missing or unreadable. Older images showed this as `error parsing mapping JSON`, `unable to load snapshot` or `metadata missing` in the log, and the `search` service then failed five times and took the whole server down. The wrapper moved the damaged index aside, OpenCloud started with a new one, and the wrapper then indexed all spaces again. `filling the new search index` and `search index rebuilt` in the log mark the start and the end of that run. Until it finishes, search misses some files, and with many files that can take a while.
 
 The `.broken` folder under `search/` in your Data folder is only kept for inspection and can be deleted. If the log says `indexing the spaces failed`, the run is repeated on the next start, or you can start it yourself in the container console:
 
@@ -362,7 +362,11 @@ The `.broken` folder under `search/` in your Data folder is only kept for inspec
 opencloud search index --all-spaces --force-rescan --insecure
 ```
 
-To make a damaged index less likely, give the server time to stop. Unraid kills a container that has not stopped after **Settings → Docker → Docker Stop Timeout** seconds, 10 by default, and uses that value for every stop and update, whatever the container's own `--stop-timeout` says. 60 leaves OpenCloud enough time to write its index.
+What damages the index is not known yet. Killing the server in the middle of indexing, hundreds of times, did not reproduce it. If it happens to you, please open an issue and attach the file list of the `.broken` folder together with its `store/root.bolt`, which holds the list of index files and no file contents:
+
+```bash
+ls -la --time-style=full-iso /var/lib/opencloud/search/bleve-v5.broken/store
+```
 
 A Data folder from another install or storage backend (local vs S3) is a different matter. Those layouts are not interchangeable and there is no in-place migration between backends, so give the container a fresh, empty Data folder and re-upload the files through the web UI.
 

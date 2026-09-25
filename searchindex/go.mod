@@ -4,7 +4,7 @@ go 1.26
 
 require (
 	github.com/blevesearch/bleve/v2 v2.6.1
-	go.etcd.io/bbolt v1.4.3
+	go.etcd.io/bbolt v1.5.0
 )
 
 require (

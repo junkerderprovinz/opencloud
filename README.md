@@ -370,6 +370,29 @@ stat -c '%y %s %n' /var/lib/opencloud/search/bleve-v5.broken/store/*
 
 A Data folder from another install or storage backend (local vs S3) is a different matter. Those layouts are not interchangeable and there is no in-place migration between backends, so give the container a fresh, empty Data folder and re-upload the files through the web UI.
 
+### "Personal" is gone after copying files into the Data folder
+
+With the default `posix` driver each account's files live in `storage/users/users/<id>/` inside the Data folder, and OpenCloud keeps its own bookkeeping in extended attributes on every file and folder. If the folder of a personal space is replaced or loses those attributes, for example because a folder was copied over it, OpenCloud stops listing that space and **Personal** disappears from the sidebar. OpenCloud does not repair this by itself, and the log shows `node.Xattr .../storage/users/users/<id> user.oc.name: no data available`.
+
+Uploading through the web UI or a sync client is always safe. To copy a large collection in directly, do it like this (tested with OpenCloud 8.0.1 on Unraid 7.3.2):
+
+1. Sign in to OpenCloud once with the account the files are for, so that its personal space exists.
+2. Stop the container: **Docker** tab, click the OpenCloud icon, **Stop**. OpenCloud picks up files added from outside when it starts.
+3. Open the Unraid terminal (`>_` at the top right) and find the account's folder. The path below is the template's default Data path; use yours if you changed it.
+   ```bash
+   getfattr -n user.oc.space.alias /mnt/user/appdata/opencloud/data/storage/users/users/*
+   ```
+   Each folder is listed with `personal/<user name>`. A folder that answers `No such attribute` has lost its attributes, which is the problem described here.
+4. Copy into that folder, never onto it, and give the files to the user OpenCloud runs as:
+   ```bash
+   cp -r "/mnt/user/Documents/." "/mnt/user/appdata/opencloud/data/storage/users/users/<id>/"
+   chown -R nobody:users "/mnt/user/appdata/opencloud/data/storage/users/users/<id>"
+   ```
+   If you set your own `PUID`/`PGID`, use those numbers instead of `nobody:users`. OpenCloud skips files owned by root and logs `permission denied` for them.
+5. Start the container. The files appear once the startup scan is done, which takes a few minutes with many files.
+
+If **Personal** is already gone, the dependable way back is a fresh start: stop the container, delete or rename its `config` and `data` folders, start it again, sign in and add the files as above. This also removes the accounts, shares and settings stored in OpenCloud, so only do it on a new install.
+
 ### A WebDAV client gets `401 Unauthorized` with an app token that is definitely correct
 
 rclone, a phone sync app or any other WebDAV client is refused with `401 Unauthorized`, while the same account signs in through the browser without trouble. The token is not the problem: **`PROXY_ENABLE_APP_AUTH` is `false` by default**, and with it off the proxy refuses the request before the token is read at all.

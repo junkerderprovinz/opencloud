@@ -330,7 +330,7 @@ docker build -t opencloud:dev .
 # rolling channel (reads the BASE_ROLLING pin from the Dockerfile)
 docker build --build-arg BASE="$(grep -oE 'ARG BASE_ROLLING=[^[:space:]]+' Dockerfile | cut -d= -f2)" -t opencloud:rolling .
 
-# multi-arch (amd64 + arm64) — needs buildx
+# multi-arch (amd64 + arm64), needs buildx
 docker buildx build --platform linux/amd64,linux/arm64 -t opencloud:dev --load .
 ```
 

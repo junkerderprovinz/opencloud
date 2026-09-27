@@ -387,6 +387,18 @@ if [ -f "${SEARCH_PENDING}" ] || [ -n "${_indexes_before}${_moved}" ]; then
     ) &
 fi
 
+# The posix driver finds a personal space only through the attributes on its
+# folder. When they are lost, for example because a folder was copied over it,
+# the space vanishes from the web UI without an error and OpenCloud does not
+# rebuild it (issue #31).
+if [ "${STORAGE_USERS_DRIVER:-posix}" = "posix" ]; then
+    for _space in "${STORAGE_USERS_POSIX_ROOT:-${OC_BASE_DATA_PATH:-${DATA_DIR}}/storage/users}"/users/*/; do
+        if [ -d "${_space}" ] && ! getfattr -n user.oc.space.id "${_space}" >/dev/null 2>&1; then
+            echo "[entrypoint] WARNING: ${_space%/} has lost its OpenCloud attributes, so that account's Personal space is missing; see \"Personal is gone\" under Troubleshooting in the README"
+        fi
+    done
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. On later boots the file exists and init exits non-zero,
 # which is ignored.

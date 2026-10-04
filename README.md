@@ -12,7 +12,7 @@
   <a href="https://hub.docker.com/r/junkerderprovinz/opencloud"><img src="https://img.shields.io/docker/image-size/junkerderprovinz/opencloud/latest?style=for-the-badge&logo=docker&logoColor=white&label=Size&color=20434f" alt="Image Size" height="36"></a>&nbsp;
   <a href="https://github.com/junkerderprovinz/opencloud/pkgs/container/opencloud"><img src="https://img.shields.io/badge/Arch-amd64%20%7C%20arm64-success?style=for-the-badge&logo=linux&logoColor=white" alt="Arch" height="36"></a>&nbsp;
   <a href="https://opencloud.eu"><img src="https://img.shields.io/badge/Upstream-OpenCloud-20434f?style=for-the-badge&logo=owncloud&logoColor=white" alt="OpenCloud" height="36"></a>&nbsp;
-  <a href="https://unraid.net"><img src="https://img.shields.io/badge/Unraid-Template-f15a2c?style=for-the-badge&logo=unraid&logoColor=white" alt="Unraid" height="36"></a>&nbsp;
+  <a href="https://ca.unraid.net/apps/opencloud-0z4cxjl1rm24ul"><img src="https://img.shields.io/badge/Unraid-Template-f15a2c?style=for-the-badge&logo=unraid&logoColor=white" alt="Unraid" height="36"></a>&nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-blue?style=for-the-badge&logo=gnu&logoColor=white" alt="License: AGPL-3.0" height="36"></a>
 </p>
 
@@ -120,6 +120,8 @@ docker run -d --name opencloud \
 **Editing documents.** Install [Euro Office](https://github.com/junkerderprovinz/euro-office) and set its JWT secret. Here, set **Web office suite** to `euro-office`, **Office document server URL** to the address its WebUI button opens, such as `http://192.168.1.10:9900`, and **Office WOPI secret** to the same text as that JWT secret. Collabora and OnlyOffice load the editor straight from their own server, so for them the URL has to be https.
 
 **Behind a reverse proxy** that terminates TLS, set `PROXY_TLS=false`, `OC_URL` to the external address and `OC_INSECURE=false`, and point the proxy at port 9200.
+
+Configuration, Files and S3, the web office, the reverse proxy, updating and troubleshooting are explained step by step in the [guide](docs/guide.md).
 
 <br>
 

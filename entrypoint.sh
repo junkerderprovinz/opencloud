@@ -18,6 +18,14 @@ CONFIG_DIR="/etc/opencloud"
 DATA_DIR="/var/lib/opencloud"
 SENTINEL="${DATA_DIR}/.uid-heal"
 
+# The template's Files path mounts here. It takes the user files out of Data, so
+# Data, which holds the message bus and writes to disk all the time, can stay on
+# a pool while the files go to the array.
+FILES_DIR="/files"
+if [ -z "${STORAGE_USERS_POSIX_ROOT:-}" ] && grep -q " ${FILES_DIR} " /proc/self/mountinfo; then
+    export STORAGE_USERS_POSIX_ROOT="${FILES_DIR}"
+fi
+
 if [ "$(id -u)" = "0" ]; then
     # Prefix for the commands that run as the target user.
     DROP="gosu ${PUID}:${PGID}"
@@ -47,6 +55,13 @@ if [ "$(id -u)" = "0" ]; then
     # user even if it first appears after the one-time heal.
     if [ -d "${DATA_DIR}/nats" ]; then
         chown -R "${PUID}:${PGID}" "${DATA_DIR}/nats"
+    fi
+    # The storage service refuses a root it cannot write to and takes the whole
+    # server down with it. The files below stay as they are: they can be
+    # terabytes, and OpenCloud writes new ones as the target user.
+    if [ -n "${STORAGE_USERS_POSIX_ROOT:-}" ]; then
+        mkdir -p "${STORAGE_USERS_POSIX_ROOT}"
+        chown "${PUID}:${PGID}" "${STORAGE_USERS_POSIX_ROOT}"
     fi
 else
     echo "[entrypoint] not running as root (uid $(id -u)), skipping permission heal"
@@ -454,6 +469,13 @@ if [ "${STORAGE_USERS_DRIVER:-posix}" = "posix" ]; then
             echo "[entrypoint] WARNING: ${_space%/} has lost its OpenCloud attributes, so that account's Personal space is missing; see \"Personal is gone\" under Troubleshooting in the README"
         fi
     done
+    # Files set on an install that already had files: OpenCloud starts on the
+    # new folder and the old files stay in Data without showing up anywhere.
+    _default_root="${OC_BASE_DATA_PATH:-${DATA_DIR}}/storage/users"
+    if [ "${STORAGE_USERS_POSIX_ROOT:-${_default_root}}" != "${_default_root}" ] \
+        && [ -n "$(find "${_default_root}/users" -mindepth 2 -maxdepth 2 ! -name '.oc-*' 2>/dev/null | head -n 1)" ]; then
+        echo "[entrypoint] WARNING: ${_default_root}/users still holds files from before the Files path was set, and OpenCloud no longer shows them; see \"Files in a separate folder\" in the README to move them over"
+    fi
 fi
 
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes

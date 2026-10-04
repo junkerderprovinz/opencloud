@@ -86,12 +86,31 @@ export PROXY_TLS="${PROXY_TLS:-true}"
 # (default), collabora, onlyoffice or euro-office. The document server runs as its
 # own container (Collabora CODE, or an OnlyOffice/Euro Office Document Server);
 # this only turns on OpenCloud's built-in 'collaboration' (WOPI) service and
-# points it at that server. OFFICE_SERVER_URL is the browser-reachable URL of that
-# container, OFFICE_WOPI_SECRET a shared secret. Values checked against
+# points it at that server. OFFICE_SERVER_URL is that container's address on the
+# network, OFFICE_WOPI_SECRET a shared secret. Values checked against
 # opencloud-compose weboffice/collabora.yml and weboffice/euro-office.yml. Euro
 # Office is an ONLYOFFICE fork, so it is driven as the "OnlyOffice" product with
 # its own display name.
 _office="$(printf '%s' "${OFFICE:-off}" | tr '[:upper:]' '[:lower:]')"
+
+# OpenCloud reads extra proxy routes from proxy.yaml in the config dir, and the
+# wrapper writes that file for Euro Office and the branding app. Only a regular
+# file whose first line starts with the marker is ours to rewrite or remove,
+# also after an editor on Windows saved it with CRLF or a BOM. A symlink always
+# counts as the user's own, so nothing is written through it.
+PROXY_FILE="${CONFIG_DIR}/proxy.yaml"
+PROXY_MARKER="# managed by the opencloud Unraid wrapper"
+_own_proxy="false"
+if [ -L "${PROXY_FILE}" ]; then
+    _own_proxy="true"
+elif [ -f "${PROXY_FILE}" ]; then
+    case "$(head -n 1 "${PROXY_FILE}" | tr -d '\r\357\273\277')" in
+        "${PROXY_MARKER}"*) ;;
+        *) _own_proxy="true" ;;
+    esac
+fi
+_proxy_routes=""
+
 case "${_office}" in
     collabora)                 _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
     onlyoffice)                _oc_app_name="OnlyOffice";      _oc_app_product="OnlyOffice" ;;
@@ -103,7 +122,6 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     export OC_ADD_RUN_SERVICES="${OC_ADD_RUN_SERVICES:+${OC_ADD_RUN_SERVICES},}collaboration"
     export COLLABORATION_APP_NAME="${_oc_app_name}"
     export COLLABORATION_APP_PRODUCT="${_oc_app_product}"
-    export COLLABORATION_APP_ADDR="${OFFICE_SERVER_URL}"
     export COLLABORATION_WOPI_SRC="${OC_URL}"
     [ -n "${OFFICE_WOPI_SECRET:-}" ] && export COLLABORATION_WOPI_SECRET="${OFFICE_WOPI_SECRET}"
     # OnlyOffice and Euro Office reject every document with "document security
@@ -112,16 +130,69 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     if [ "${_oc_app_product}" = "OnlyOffice" ] && [ -z "${OFFICE_WOPI_SECRET:-}" ]; then
         echo "[entrypoint] WARNING: OFFICE=${OFFICE} but OFFICE_WOPI_SECRET is empty; documents will fail with 'document security token is not correctly formed' unless it exactly matches the document server's JWT secret"
     fi
-    # A browser refuses to load an http editor into an https page. The editor
-    # area just stays blank and neither container logs anything, so this line
-    # is the only hint there is.
-    case "${OC_URL}" in
-        https://*)
-            case "${OFFICE_SERVER_URL}" in
-                http://*) echo "[entrypoint] WARNING: OFFICE_SERVER_URL is http but OpenCloud runs on https; browsers block the editor as mixed content and documents open blank. Use the document server's https address instead (Euro Office: https://<server-ip>:9943)" ;;
-            esac
-            ;;
-    esac
+    # Reduce OFFICE_SERVER_URL to scheme://host[:port], dropping any path or
+    # query, with parameter expansion rather than a sed dialect.
+    _oc_office_rest="${OFFICE_SERVER_URL#*://}"
+    _oc_office_origin="${OFFICE_SERVER_URL%%://*}://${_oc_office_rest%%/*}"
+    if [ "${_oc_app_name}" = "Euro-Office" ] && [ "${_own_proxy}" = "false" ]; then
+        # The editor runs under OpenCloud's own address at /euro-office/, so the
+        # browser never meets a second origin: an http server causes no mixed
+        # content and there is no second certificate to accept. The Euro Office
+        # image strips the prefix. /sdkjs/ is routed as well because the editor
+        # page loads one script through a fixed run of ../ that climbs out of it.
+        export COLLABORATION_APP_ADDR="${OC_URL%/}/euro-office"
+        _proxy_routes="${_proxy_routes}
+      - endpoint: /euro-office/
+        backend: ${_oc_office_origin}
+        unprotected: true
+        skip_x_access_token: true
+        additional_headers:
+          X-Forwarded-Prefix: /euro-office
+          X-Forwarded-Proto: https
+      - endpoint: /sdkjs/
+        backend: ${_oc_office_origin}
+        unprotected: true
+        skip_x_access_token: true"
+        case "${OFFICE_SERVER_URL}" in
+            https://*) export PROXY_INSECURE_BACKENDS="${PROXY_INSECURE_BACKENDS:-true}" ;;
+        esac
+        # The editor compiles code at runtime and starts web workers, both of
+        # which OpenCloud's own policy forbids.
+        _oc_csp="directives:
+  script-src:
+    - \"'unsafe-eval'\"
+  worker-src:
+    - \"'self'\"
+    - \"blob:\"
+  font-src:
+    - \"data:\""
+        _oc_office_where="${COLLABORATION_APP_ADDR} (proxied to ${_oc_office_origin})"
+    else
+        if [ "${_oc_app_name}" = "Euro-Office" ]; then
+            echo "[entrypoint] NOTE: your own ${PROXY_FILE} stays untouched, so the browser reaches Euro Office directly at ${OFFICE_SERVER_URL} and that address has to be https"
+        fi
+        export COLLABORATION_APP_ADDR="${OFFICE_SERVER_URL}"
+        # A browser refuses to load an http editor into an https page. The
+        # editor area just stays blank and neither container logs anything, so
+        # this line is the only hint there is.
+        case "${OC_URL}" in
+            https://*)
+                case "${OFFICE_SERVER_URL}" in
+                    http://*) echo "[entrypoint] WARNING: OFFICE_SERVER_URL is http but OpenCloud runs on https; browsers block the editor as mixed content and documents open blank. Use the document server's https address instead" ;;
+                esac
+                ;;
+        esac
+        # Registering a WOPI app does not add its origin to OpenCloud's own
+        # Content-Security-Policy, so the browser would block the editor iframe
+        # (junkerderprovinz/unraid-apps#7). opencloud-compose wires the same
+        # origin into both places by hand.
+        _oc_csp="directives:
+  frame-src:
+    - '${_oc_office_origin}/'
+  img-src:
+    - '${_oc_office_origin}/'"
+        _oc_office_where="${OFFICE_SERVER_URL}"
+    fi
     # tolerate self-signed certs on the doc server and the internal data gateway (LAN default)
     export COLLABORATION_APP_INSECURE="${COLLABORATION_APP_INSECURE:-true}"
     export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"
@@ -131,37 +202,17 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     # secure-view role (exact default role set incl. secure-view, from opencloud-compose)
     export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
     export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
-    # Registering a WOPI app does not add its origin to OpenCloud's own
-    # Content-Security-Policy: COLLABORATION_APP_ADDR and the proxy's frame-src
-    # allowlist are separate settings that need the same value. Without this the
-    # browser blocks the editor iframe with a CSP frame-src violation
-    # (junkerderprovinz/unraid-apps#7). opencloud-compose's weboffice/*.yml and
-    # config/opencloud/csp.yaml wire the same origin into both places by hand;
-    # this writes the second half automatically. PROXY_CSP_CONFIG_FILE_LOCATION
-    # entries are merged into OpenCloud's built-in CSP, so the file only needs
-    # the addition.
+    # PROXY_CSP_CONFIG_FILE_LOCATION entries are merged into OpenCloud's
+    # built-in CSP, so the file only needs the additions.
     if [ -z "${PROXY_CSP_CONFIG_FILE_LOCATION:-}" ]; then
-        # Reduce OFFICE_SERVER_URL to scheme://host[:port]/, dropping any path or
-        # query, with parameter expansion rather than a sed dialect.
-        _oc_office_rest="${OFFICE_SERVER_URL#*://}"
-        _oc_office_hostport="${_oc_office_rest%%/*}"
-        _oc_office_origin="${OFFICE_SERVER_URL%%://*}://${_oc_office_hostport}/"
-        cat > "${CONFIG_DIR}/csp.yaml" <<EOF
-directives:
-  frame-src:
-    - '${_oc_office_origin}'
-  img-src:
-    - '${_oc_office_origin}'
-EOF
+        printf '%s\n' "${_oc_csp}" > "${CONFIG_DIR}/csp.yaml"
         chown "${PUID}:${PGID}" "${CONFIG_DIR}/csp.yaml" 2>/dev/null || true
         export PROXY_CSP_CONFIG_FILE_LOCATION="${CONFIG_DIR}/csp.yaml"
-        echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on, CSP frame-src updated)"
+        echo "[entrypoint] web-office enabled: ${_oc_app_name} at ${_oc_office_where} (collaboration service on, CSP updated)"
     else
-        # The user already points OpenCloud at their own CSP file, so it stays
-        # untouched and they add ${OFFICE_SERVER_URL} to its frame-src/img-src
-        # themselves.
-        echo "[entrypoint] web-office enabled: ${_oc_app_product} at ${OFFICE_SERVER_URL} (collaboration service on)"
-        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set; add ${OFFICE_SERVER_URL} to its frame-src/img-src yourself or the editor iframe will be CSP-blocked"
+        echo "[entrypoint] web-office enabled: ${_oc_app_name} at ${_oc_office_where} (collaboration service on)"
+        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set; add these directives to that file yourself or the editor stays blank:"
+        printf '%s\n' "${_oc_csp}"
     fi
 elif [ -n "${_oc_app_name}" ]; then
     echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office not enabled"
@@ -193,28 +244,16 @@ BRANDING_SHARE="/usr/local/share/opencloud-branding"
 BRANDING_APPS_DIR="${DATA_DIR}/web/assets/apps/branding"
 BRANDING_ASSETS="${DATA_DIR}/web/assets/themes/_branding"
 BRANDING_STATE="${DATA_DIR}/branding/state.json"
-BRANDING_PROXY="${CONFIG_DIR}/proxy.yaml"
-BRANDING_PROXY_MARKER="# managed by the opencloud Unraid wrapper (BRANDING_APP)"
 _branding="$(printf '%s' "${BRANDING_APP:-false}" | tr '[:upper:]' '[:lower:]')"
-
-# Only a regular file whose first line is the marker is ours to rewrite or
-# remove, also after an editor on Windows saved it with CRLF or a BOM. A
-# symlink always counts as the user's own, so nothing is written through it.
-_own_proxy="false"
-if [ -L "${BRANDING_PROXY}" ]; then
-    _own_proxy="true"
-elif [ -f "${BRANDING_PROXY}" ] && [ "$(head -n 1 "${BRANDING_PROXY}" | tr -d '\r\357\273\277')" != "${BRANDING_PROXY_MARKER}" ]; then
-    _own_proxy="true"
-fi
 
 # OpenCloud drops the whole file when a top-level key appears twice, and it
 # only routes through the policy named default. The route counts when
 # endpoint, backend and unprotected sit in the same list item of that policy.
 if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
-    if [ -f "${BRANDING_PROXY}" ] && [ "$(awk '/^additional_policies:/ { n++ } END { print n + 0 }' "${BRANDING_PROXY}")" -gt 1 ]; then
-        echo "[entrypoint] WARNING: your own ${BRANDING_PROXY} has more than one additional_policies key, so OpenCloud ignores the whole file and the branding app stays off; merge them into one"
+    if [ -f "${PROXY_FILE}" ] && [ "$(awk '/^additional_policies:/ { n++ } END { print n + 0 }' "${PROXY_FILE}")" -gt 1 ]; then
+        echo "[entrypoint] WARNING: your own ${PROXY_FILE} has more than one additional_policies key, so OpenCloud ignores the whole file and the branding app stays off; merge them into one"
         _branding="false"
-    elif [ -f "${BRANDING_PROXY}" ] && awk '
+    elif [ -f "${PROXY_FILE}" ] && awk '
         function item_end() { if (ep && be && un && policy == "default") found = 1; ep = 0; be = 0; un = 0 }
         /^[[:space:]]*-[[:space:]]/ { item_end() }
         /^[[:space:]]*(-[[:space:]]+)?name:/ {
@@ -227,10 +266,10 @@ if [ "${_branding}" = "true" ] && [ "${_own_proxy}" = "true" ]; then
         /^[[:space:]]*(-[[:space:]]+)?backend:[[:space:]]*["\047]?http:\/\/127\.0\.0\.1:9299\/?["\047]?[[:space:]]*(#.*)?$/ { be = 1 }
         /^[[:space:]]*(-[[:space:]]+)?unprotected:[[:space:]]*(true|True|TRUE)[[:space:]]*(#.*)?$/ { un = 1 }
         END { item_end(); exit !found }
-    ' "${BRANDING_PROXY}"; then
-        echo "[entrypoint] branding app uses the /brandingsvc/ route from your ${BRANDING_PROXY}"
+    ' "${PROXY_FILE}"; then
+        echo "[entrypoint] branding app uses the /brandingsvc/ route from your ${PROXY_FILE}"
     else
-        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${BRANDING_PROXY} has no /brandingsvc/ route in the default policy with unprotected: true, so the branding app stays off; add the route from the README"
+        echo "[entrypoint] WARNING: BRANDING_APP=true but your own ${PROXY_FILE} has no /brandingsvc/ route in the default policy with unprotected: true, so the branding app stays off; add the route from the README"
         _branding="false"
     fi
 fi
@@ -251,24 +290,32 @@ if [ "${_branding}" = "true" ]; then
     elif ! ${DROP} test -w "${BRANDING_ASSETS}" || ! ${DROP} test -w "${DATA_DIR}/branding"; then
         echo "[entrypoint] WARNING: ${BRANDING_ASSETS} or ${DATA_DIR}/branding is not writable for ${PUID}:${PGID}, so the branding app stays off; chown -R ${PUID}:${PGID} ${DATA_DIR}/web ${DATA_DIR}/branding in the container fixes it"
         _branding="false"
-    elif [ "${_own_proxy}" = "false" ]; then
-        ${DROP} sh -c 'cat > "$1"' sh "${BRANDING_PROXY}" <<EOF
-${BRANDING_PROXY_MARKER}
-additional_policies:
-  - name: default
-    routes:
+    else
+        _proxy_routes="${_proxy_routes}
       - endpoint: /brandingsvc/
         backend: http://127.0.0.1:9299
-        unprotected: true
-EOF
+        unprotected: true"
     fi
 fi
 # shellcheck disable=SC2086
 if [ "${_branding}" != "true" ]; then
     ${DROP} rm -rf "${BRANDING_APPS_DIR}" || echo "[entrypoint] WARNING: could not remove ${BRANDING_APPS_DIR}"
-    if [ -f "${BRANDING_PROXY}" ] && [ "${_own_proxy}" = "false" ]; then
-        ${DROP} rm -f "${BRANDING_PROXY}"
-        echo "[entrypoint] branding app off: removed the managed ${BRANDING_PROXY}"
+fi
+
+# OpenCloud drops the whole file when a top-level key appears twice, so all
+# managed routes go into one policy list.
+# shellcheck disable=SC2086
+if [ "${_own_proxy}" = "false" ]; then
+    if [ -n "${_proxy_routes}" ]; then
+        ${DROP} sh -c 'cat > "$1"' sh "${PROXY_FILE}" <<EOF
+${PROXY_MARKER}
+additional_policies:
+  - name: default
+    routes:${_proxy_routes}
+EOF
+    elif [ -f "${PROXY_FILE}" ]; then
+        ${DROP} rm -f "${PROXY_FILE}"
+        echo "[entrypoint] removed the managed ${PROXY_FILE}, no route needs it any more"
     fi
 fi
 

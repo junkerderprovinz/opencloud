@@ -112,6 +112,16 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     if [ "${_oc_app_product}" = "OnlyOffice" ] && [ -z "${OFFICE_WOPI_SECRET:-}" ]; then
         echo "[entrypoint] WARNING: OFFICE=${OFFICE} but OFFICE_WOPI_SECRET is empty; documents will fail with 'document security token is not correctly formed' unless it exactly matches the document server's JWT secret"
     fi
+    # A browser refuses to load an http editor into an https page. The editor
+    # area just stays blank and neither container logs anything, so this line
+    # is the only hint there is.
+    case "${OC_URL}" in
+        https://*)
+            case "${OFFICE_SERVER_URL}" in
+                http://*) echo "[entrypoint] WARNING: OFFICE_SERVER_URL is http but OpenCloud runs on https; browsers block the editor as mixed content and documents open blank. Use the document server's https address instead (Euro Office: https://<server-ip>:9943)" ;;
+            esac
+            ;;
+    esac
     # tolerate self-signed certs on the doc server and the internal data gateway (LAN default)
     export COLLABORATION_APP_INSECURE="${COLLABORATION_APP_INSECURE:-true}"
     export COLLABORATION_CS3API_DATAGATEWAY_INSECURE="${COLLABORATION_CS3API_DATAGATEWAY_INSECURE:-true}"

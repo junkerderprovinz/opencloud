@@ -26,6 +26,14 @@ if [ -z "${STORAGE_USERS_POSIX_ROOT:-}" ] && grep -q " ${FILES_DIR} " /proc/self
     export STORAGE_USERS_POSIX_ROOT="${FILES_DIR}"
 fi
 
+# A /mnt/user path reaches the container through Unraid's FUSE layer unless the
+# share is exclusive. The message bus in Data can hang that layer during a large
+# sync, and every container with a /mnt/user path hangs with it (issue #31).
+_data_fs="$(awk -v mp="${DATA_DIR}" '$5 == mp { for (i = 7; i <= NF; i++) if ($i == "-") { print $(i + 1); exit } }' /proc/self/mountinfo)"
+if [ "${_data_fs}" = "fuse.shfs" ]; then
+    echo "[entrypoint] WARNING: Data goes through Unraid's share layer (shfs), which a large sync can hang until the server is rebooted; set Data to the pool itself, for example /mnt/cache/appdata/opencloud/data, see \"Large-folder sync\" under Troubleshooting in the guide"
+fi
+
 if [ "$(id -u)" = "0" ]; then
     # Prefix for the commands that run as the target user.
     DROP="gosu ${PUID}:${PGID}"
@@ -466,7 +474,7 @@ fi
 if [ "${STORAGE_USERS_DRIVER:-posix}" = "posix" ]; then
     for _space in "${STORAGE_USERS_POSIX_ROOT:-${OC_BASE_DATA_PATH:-${DATA_DIR}}/storage/users}"/users/*/; do
         if [ -d "${_space}" ] && ! getfattr -n user.oc.space.id "${_space}" >/dev/null 2>&1; then
-            echo "[entrypoint] WARNING: ${_space%/} has lost its OpenCloud attributes, so that account's Personal space is missing; see \"Personal is gone\" under Troubleshooting in the README"
+            echo "[entrypoint] WARNING: ${_space%/} has lost its OpenCloud attributes, so that account's Personal space is missing; see \"Personal is gone\" under Troubleshooting in the guide"
         fi
     done
     # Files set on an install that already had files: OpenCloud starts on the
@@ -474,7 +482,7 @@ if [ "${STORAGE_USERS_DRIVER:-posix}" = "posix" ]; then
     _default_root="${OC_BASE_DATA_PATH:-${DATA_DIR}}/storage/users"
     if [ "${STORAGE_USERS_POSIX_ROOT:-${_default_root}}" != "${_default_root}" ] \
         && [ -n "$(find "${_default_root}/users" -mindepth 2 -maxdepth 2 ! -name '.oc-*' 2>/dev/null | head -n 1)" ]; then
-        echo "[entrypoint] WARNING: ${_default_root}/users still holds files from before the Files path was set, and OpenCloud no longer shows them; see \"Files in a separate folder\" in the README to move them over"
+        echo "[entrypoint] WARNING: ${_default_root}/users still holds files from before the Files path was set, and OpenCloud no longer shows them; see \"Files in a separate folder\" in the guide to move them over"
     fi
 fi
 

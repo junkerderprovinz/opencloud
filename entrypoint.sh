@@ -20,18 +20,23 @@ SENTINEL="${DATA_DIR}/.uid-heal"
 
 # The template's Files path mounts here. It takes the user files out of Data, so
 # Data, which holds the message bus and writes to disk all the time, can stay on
-# a pool while the files go to the array.
+# a pool while the files go to an array disk.
 FILES_DIR="/files"
 if [ -z "${STORAGE_USERS_POSIX_ROOT:-}" ] && grep -q " ${FILES_DIR} " /proc/self/mountinfo; then
     export STORAGE_USERS_POSIX_ROOT="${FILES_DIR}"
 fi
 
 # A /mnt/user path reaches the container through Unraid's FUSE layer unless the
-# share is exclusive. The message bus in Data can hang that layer during a large
-# sync, and every container with a /mnt/user path hangs with it (issue #31).
-_data_fs="$(awk -v mp="${DATA_DIR}" '$5 == mp { for (i = 7; i <= NF; i++) if ($i == "-") { print $(i + 1); exit } }' /proc/self/mountinfo)"
-if [ "${_data_fs}" = "fuse.shfs" ]; then
+# share is exclusive. A large sync through Data or Files can hang that layer, and
+# every container with a /mnt/user path hangs with it (issue #31).
+mount_fs() {
+    awk -v mp="$1" '$5 == mp { for (i = 7; i <= NF; i++) if ($i == "-") { print $(i + 1); exit } }' /proc/self/mountinfo
+}
+if [ "$(mount_fs "${DATA_DIR}")" = "fuse.shfs" ]; then
     echo "[entrypoint] WARNING: Data goes through Unraid's share layer (shfs), which a large sync can hang until the server is rebooted; set Data to the pool itself, for example /mnt/cache/appdata/opencloud/data, see \"Large-folder sync\" under Troubleshooting in the guide"
+fi
+if [ "$(mount_fs "${FILES_DIR}")" = "fuse.shfs" ]; then
+    echo "[entrypoint] WARNING: Files goes through Unraid's share layer (shfs), which a large sync can hang until the server is rebooted; set Files to a single disk, for example /mnt/disk1/opencloud/files, see \"Files in a separate folder\" in the guide"
 fi
 
 if [ "$(id -u)" = "0" ]; then

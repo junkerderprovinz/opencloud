@@ -31,7 +31,7 @@ Everything beyond the first start: configuration, Files and S3, the web office, 
 
 ### Files in a separate folder (optional)
 
-Data holds OpenCloud's message bus, search index and accounts. They write to disk all the time, and on the Unraid array that is slow enough to stall large syncs, so Data belongs on an SSD or cache pool. Your files can live elsewhere. If the pool is too small for them, set **Files** in the template to a share on the array, for example `/mnt/user/opencloud`. The files go there, and Data stays small: in a test with 4 GB in 2,000 files it held 41 MB.
+Data holds OpenCloud's message bus, search index and accounts. They write to disk all the time, and on the Unraid array that is slow enough to stall large syncs, so Data belongs on an SSD or cache pool. Your files can live elsewhere. If the pool is too small for them, set **Files** in the template to a single array disk, for example `/mnt/disk1/opencloud/files`. A `/mnt/user/...` share path goes through Unraid's share layer (shfs), which a large sync can hang along with every other container that uses it, so give the disk itself: on the **Shares** tab set the share's **Primary storage** to **Array**, **Secondary storage** to **None** and include only that disk. The files go there, and Data stays small: in a test with 4 GB in 2,000 files it held 41 MB.
 
 The wrapper notices the mount at `/files`, points OpenCloud's storage there (`STORAGE_USERS_POSIX_ROOT`) and hands the folder to `PUID`:`PGID`. Uploads are staged next to the files, so they still land on the array, but the message bus does not. With an S3 backend this field does nothing, because the files go to the bucket.
 
@@ -40,16 +40,16 @@ Set Files before the first start. On an install that already has files, OpenClou
 1. Stop the container: **Docker** tab, click the OpenCloud icon, **Stop**.
 2. Open the Unraid terminal (`>_` at the top right). Each account has a folder with the same name in both places:
    ```bash
-   ls /mnt/user/appdata/opencloud/data/storage/users/users/ /mnt/user/opencloud/users/
+   ls /mnt/cache/appdata/opencloud/data/storage/users/users/ /mnt/disk1/opencloud/files/users/
    ```
    Use your own Data and Files paths if they differ from these.
 3. Copy the files over without OpenCloud's own `.oc-*` folders, and give them to the user OpenCloud runs as:
    ```bash
-   rsync -r --exclude='.oc-*' "/mnt/user/appdata/opencloud/data/storage/users/users/<id>/" "/mnt/user/opencloud/users/<id>/"
-   chown -R nobody:users "/mnt/user/opencloud/users/<id>"
+   rsync -r --exclude='.oc-*' "/mnt/cache/appdata/opencloud/data/storage/users/users/<id>/" "/mnt/disk1/opencloud/files/users/<id>/"
+   chown -R nobody:users "/mnt/disk1/opencloud/files/users/<id>"
    ```
    With your own `PUID`/`PGID`, use those numbers instead of `nobody:users`.
-4. Start the container and check that the files are there. Then delete `/mnt/user/appdata/opencloud/data/storage/users/users` to free the space, and the warning goes away.
+4. Start the container and check that the files are there. Then delete `/mnt/cache/appdata/opencloud/data/storage/users/users` to free the space, and the warning goes away.
 
 <br>
 
@@ -289,7 +289,7 @@ This does **not** open WebDAV to account passwords. That is the separate `PROXY_
 
 Syncing a large folder (tens of GB) from the desktop client stalls partway and the client connection just drops. On older OpenCloud versions the cause was **slow `fsync` on the Data volume**, not the network. On OpenCloud 8.0.1 the Unraid array did not reproduce it, so if it happens on a current version, also check [the next entry](#the-log-ends-with-unable-to-publish-event-and-fatal-error---exiting). The **Data** volume holds the embedded NATS message bus, the file-tree metadata and the transient upload staging, all of them fsync-heavy. On slow storage (the Unraid array, or any `/mnt/user` share through the shfs FUSE union) the fsync storm freezes, postprocessing fails and the server drops the client (upstream issue [#3027](https://github.com/opencloud-eu/opencloud/issues/3027)).
 
-If every container hangs and only a reboot helps, the share layer itself has hung. That happens even with `appdata` on an SSD: a `/mnt/user/appdata/...` path still goes through shfs unless the share is exclusive (**Settings → Global Share Settings → Permit exclusive shares**). The container log warns about it at start (`Data goes through Unraid's share layer`).
+If every container hangs and only a reboot helps, the share layer itself has hung. That happens even with `appdata` on an SSD: a `/mnt/user/appdata/...` path still goes through shfs unless the share is exclusive (**Settings → Global Share Settings → Permit exclusive shares**). Files on a `/mnt/user/...` share does the same, so give it a single disk as described in [Files in a separate folder](#files-in-a-separate-folder-optional). While it hangs, `ls` on that folder does not return, and the OpenCloud threads wait in `request_wait_answer`. The container log warns about both paths at start (`Data goes through Unraid's share layer`, `Files goes through Unraid's share layer`).
 
 Fix: put the **Data** volume on a **fast SSD/NVMe pool**, not the array, and use the pool path itself, for example `/mnt/cache/appdata/opencloud/data`. If the pool is too small for all your files, keep them on the array with [Files](#files-in-a-separate-folder-optional). With a decomposeds3/S3 backend only this small metadata volume needs fast storage (the file blobs go to your S3 bucket, so it stays small and grows with file count, not size). The reva incremental-fsync change (reva#720) also helps and ships from OpenCloud 7.3.0, which is on the `:rolling` channel ([§4](#production-vs-rolling)).
 

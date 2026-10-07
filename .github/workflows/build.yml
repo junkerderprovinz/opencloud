@@ -31,11 +31,18 @@ name: Build & Push
 #   * Weekly cron (Sun 04 UTC), which picks up upstream OpenCloud and Alpine
 #     updates
 #   * Manual workflow_dispatch
+# A branch push that only touches the README, the guide, release notes or
+# README assets builds nothing, so documentation fixes do not move :latest.
 
 on:
   push:
     branches: [ '**', '!renovate/**' ]
     tags: [ 'v*.*.*' ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+      - '.github/release-notes/**'
+      - '.github/assets/**'
   schedule:
     - cron: '0 4 * * 0'
   workflow_dispatch:

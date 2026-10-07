@@ -48,14 +48,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Validate XML files
+        # The CA template lives in unraid-apps; this validates any XML added here.
+        # Python's parser is on the runner already, so a slow apt mirror cannot
+        # stall the job.
         run: |
-          sudo apt-get update -o Acquire::Retries=3
-          sudo apt-get install -y libxml2-utils
-          # The CA template lives in unraid-apps; this validates any XML added here.
-          for f in $(find . -name '*.xml' -not -path './.git/*'); do
-            echo "Checking $f"
-            xmllint --noout "$f"
-          done
+          find . -name '*.xml' -not -path './.git/*' -print \
+            -exec python3 -c 'import sys, xml.dom.minidom; [xml.dom.minidom.parse(f) for f in sys.argv[1:]]' {} +
 
   go:
     name: Go (brandingd)

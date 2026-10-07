@@ -27,6 +27,33 @@ Everything beyond the first start: configuration, Files and S3, the web office, 
 
 > **Files show up but are greyed out / won't open?** The storage driver is wrong. Keep `STORAGE_USERS_DRIVER=posix` (the default): never leave it blank and never use `local`; both leave files visible but unreadable. Also make sure the Data volume is on a filesystem with extended-attribute support (the Unraid array and cache/pool disks have it). The driver is fixed at first init. To change it, start with a fresh Data folder.
 
+### Where Config, Data and Files go
+
+OpenCloud has no database, so its file system is the database. Every file and folder carries its metadata as extended attributes, index files sit next to them, and the NATS message bus in Data saves each message to disk straight away. During a sync that means a steady stream of small writes.
+
+On Unraid, every `/mnt/user/...` path runs through the share layer (shfs), a single program that joins the cache and the array disks into one folder tree. Under that load it can stop answering. OpenCloud then waits for its files, while the CPU stays idle, memory stays free and no disk is busy. Every other container with a `/mnt/user` path hangs too, a restart from the Docker tab ends in an error, and only a reboot of the server helps.
+
+So none of OpenCloud's folders may go through the share layer:
+
+| Field | Where it goes | Example |
+|---|---|---|
+| **Config** | the SSD pool itself | `/mnt/cache/appdata/opencloud/config` |
+| **Data** | the SSD pool itself | `/mnt/cache/appdata/opencloud/data` |
+| **Files** (optional) | one array disk, if your files don't fit on the pool | `/mnt/disk1/opencloud/files` |
+
+- Use the pool and disk names from your **Main** tab. A path to a pool that doesn't exist ends up in RAM, see [the log ends with `unable to publish event`](#the-log-ends-with-unable-to-publish-event-and-fatal-error---exiting).
+- `/mnt/user/appdata/...` only skips the share layer when `appdata` is an exclusive share: it lives on one pool with **Secondary storage** set to **None**, and **Settings → Global Share Settings → Permit exclusive shares** is on. Giving the pool path is the safer choice.
+- For Files, set the share on the **Shares** tab to **Primary storage: Array**, **Secondary storage: None**, and include only the disk you give in the path. Then the mover leaves the folder alone, and nothing written to the share over the network lands on the cache or another disk, where OpenCloud wouldn't see it.
+- Writing straight to an array disk is slower than the SSD, but there's nothing in between that can hang.
+
+The container log warns at every start when Data or Files still goes through the share layer (`Data goes through Unraid's share layer`, `Files goes through Unraid's share layer`). To check the paths yourself, run this in the Unraid terminal:
+
+```bash
+for p in $(docker inspect -f '{{range .Mounts}}{{.Source}} {{end}}' OpenCloud); do echo "$p"; df -hT "$p" | tail -n 1; done
+```
+
+None of the lines may start with `shfs`. A pool shows its device (for example `/dev/nvme0n1p1` or `/dev/sdf1`), an array disk `/dev/md1p1` for Disk 1.
+
 <br>
 
 ### Files in a separate folder (optional)

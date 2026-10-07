@@ -60,15 +60,9 @@ If it has earned a place on your server or computer, toss a coin to your knight:
 ## ⚠️ Before you start
 
 > [!IMPORTANT]
-> **Keep every OpenCloud folder off `/mnt/user`.** OpenCloud has no database. Its metadata and message bus are files that it writes all the time, and a large sync through Unraid's share layer (any `/mnt/user/...` path) can hang that layer. Every container that uses it hangs along, and only a reboot helps.
+> **Keep every OpenCloud folder off `/mnt/user`.** OpenCloud has no database and writes its metadata and message bus as files all the time. Through Unraid's share layer a large sync can hang that layer, and with it every container on `/mnt/user`, until you reboot. Give Config and Data the SSD pool itself and Files a single array disk.
 >
-> | Field | Where it goes | Example |
-> |---|---|---|
-> | **Config** | the SSD pool itself | `/mnt/cache/appdata/opencloud/config` |
-> | **Data** | the SSD pool itself | `/mnt/cache/appdata/opencloud/data` |
-> | **Files** (optional) | one array disk, if your files don't fit on the pool | `/mnt/disk1/opencloud/files` |
->
-> Use the pool and disk names from your **Main** tab, and set the share behind Files to that one disk. At startup the container log warns about any path that still goes through the share layer. [More in the guide](docs/guide.md#large-folder-sync-from-the-desktop-client-stalls-or-aborts).
+> **[Where Config, Data and Files go →](docs/guide.md#where-config-data-and-files-go)**
 
 <br>
 
@@ -115,7 +109,7 @@ The files and documents in these pictures are made up.
 
 1. Install **OpenCloud** from [Community Applications](https://ca.unraid.net/apps/opencloud-0z4cxjl1rm24ul).
 2. Set **Admin Password**, and set **Public URL** to the address clients use, for example `https://192.168.1.10:9200`. It has to be https, and Unraid does not fill it in.
-3. Set **Config**, **Data** and, if you need it, **Files** as shown under **Before you start** at the top, before the first start.
+3. Set **Config**, **Data** and, if you need it, **Files** before the first start, as described in [Where Config, Data and Files go](docs/guide.md#where-config-data-and-files-go).
 4. Click **Apply** and wait for `OPENCLOUD IS READY` in the log. Then open the Public URL, accept the self-signed certificate once and sign in as `admin`.
 
 Without Unraid:

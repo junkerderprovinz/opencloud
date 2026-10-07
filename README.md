@@ -90,7 +90,7 @@ The files and documents in these pictures are made up.
 - **Starts on the first try.** It runs `opencloud init` once, hands the config and data folders to `PUID`:`PGID` (Unraid's `nobody:users` by default) and drops to that user.
 - **Two channels.** `:rolling`, the template default, follows OpenCloud's newest releases, and `:latest` its production line. Both are rebuilt every week, for amd64 and arm64.
 - **Web office in three fields.** Pick [Euro Office](https://github.com/junkerderprovinz/euro-office), Collabora or OnlyOffice, and the container wires up OpenCloud's collaboration service, the proxy routes and the Content-Security-Policy. Euro Office runs under OpenCloud's own address, so it needs no certificate of its own.
-- **Files apart from Data.** An optional **Files** path keeps your files on the array while the message bus, search index and accounts stay on a fast pool.
+- **Files apart from Data.** An optional **Files** path keeps your files on an array disk while the message bus, search index and accounts stay on a fast pool. The log warns at startup when either path goes through Unraid's share layer.
 - **A search index that cannot stop the server.** An index OpenCloud could not open is moved aside before the start and rebuilt in the background.
 - **Branding, if you want it.** An optional app lets admins set the name, slogan, logos, favicon and login background from the web interface.
 
@@ -100,7 +100,7 @@ The files and documents in these pictures are made up.
 
 1. Install **OpenCloud** from [Community Applications](https://ca.unraid.net/apps/opencloud-0z4cxjl1rm24ul).
 2. Set **Admin Password**, and set **Public URL** to the address clients use, for example `https://192.168.1.10:9200`. It has to be https, and Unraid does not fill it in.
-3. Keep **Data** on an SSD or cache pool. If your files do not fit there, point **Files** at a share on the array before the first start.
+3. Give **Config** and **Data** the pool path itself, for example `/mnt/cache/appdata/opencloud/data`. If your files do not fit on the pool, set **Files** to a single array disk such as `/mnt/disk1/opencloud/files` before the first start. A `/mnt/user/...` path goes through Unraid's share layer, which a large sync can hang along with every container that uses it ([details](docs/guide.md#large-folder-sync-from-the-desktop-client-stalls-or-aborts)).
 4. Click **Apply** and wait for `OPENCLOUD IS READY` in the log. Then open the Public URL, accept the self-signed certificate once and sign in as `admin`.
 
 Without Unraid:

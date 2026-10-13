@@ -162,7 +162,9 @@ jobs:
           ok=0
           deadline=$((SECONDS + 150))
           while [ "$SECONDS" -lt "$deadline" ]; do
-            if docker logs "$name" 2>&1 | grep -q 'OPENCLOUD IS READY'; then
+            # Matched on a captured copy: `docker logs | grep -q` under pipefail dies of
+            # SIGPIPE once more log follows the match, and the banner then reads as missing.
+            if grep -q 'OPENCLOUD IS READY' <<< "$(docker logs "$name" 2>&1)"; then
               echo "READY banner seen after ${SECONDS}s, verifying the server stays up..."
               sleep 8
               if [ -n "$(docker ps -q --filter name="$name")" ]; then ok=1; else echo "server exited right after the banner"; fi

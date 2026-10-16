@@ -1,0 +1,32 @@
+# Built from the Unraid template in junkerderprovinz/unraid-apps by
+# .github/gen-compose.py. Change the template there, not this file.
+#
+# Folders are created next to this file on the first start. Point the ones
+# that hold your own files (downloads, storage and the like) at real folders
+# first, and fill in every value marked "required".
+
+services:
+  opencloud:
+    image: junkerderprovinz/opencloud:rolling
+    container_name: opencloud
+    restart: unless-stopped
+    ports:
+      - "9200:9200"
+    volumes:
+      - "./appdata/config:/etc/opencloud"
+      - "./appdata/data:/var/lib/opencloud"
+    environment:
+      IDM_ADMIN_PASSWORD: ""  # required
+      OC_URL: "https://YOUR-SERVER-IP:9200"  # required
+      OC_INSECURE: "true"
+      OC_LOG_LEVEL: info
+      IDM_CREATE_DEMO_USERS: "false"
+      PROXY_TLS: "true"
+      PROXY_ENABLE_APP_AUTH: "false"
+      BRANDING_APP: "false"
+      PUID: "1000"
+      PGID: "1000"
+      STORAGE_USERS_DRIVER: posix
+      STORAGE_USERS_DECOMPOSEDS3_REGION: default
+      OFFICE: "off"
+      FULLTEXT_SEARCH: "false"

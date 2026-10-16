@@ -132,6 +132,14 @@ docker run -d --name opencloud \
 
 Configuration, Files and S3, the web office, the reverse proxy, updating and troubleshooting are explained step by step in the [guide](docs/guide.md).
 
+### Other Docker hosts
+
+[compose.yaml](compose.yaml) runs OpenCloud on any Linux server with Docker. Put it in a folder of its own, fill in every value marked `required` and start it with `docker compose up -d`. The folders are created next to the file.
+
+- **Synology:** in Container Manager, create a project from the file (DSM 7.2 or newer).
+- **Proxmox:** run it in a VM or an LXC container that has Docker.
+- **MOS:** install OpenCloud from the [MOS Hub](https://mos-official.net/apps.html?search=OpenCloud).
+
 <br>
 
 ## 4. How AI is used here

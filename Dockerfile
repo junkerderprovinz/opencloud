@@ -56,7 +56,7 @@ RUN opencloud version --skip-services > /tmp/opencloud-version \
  && grep -q '"themes"' /tmp/base-theme.json
 
 # brandingd and logintemplate are static, so they cross-compile on the build host.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS brandingd
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS brandingd
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
@@ -64,7 +64,7 @@ COPY branding/server/ ./
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/brandingd ./cmd/logintemplate
 
 # searchindex sets aside a search index the server cannot open, see the entrypoint.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:f92b6ef800e499660581efdabdf25d9d817a9d124eaf900924f0504e7e27e12d AS searchindex
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS searchindex
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

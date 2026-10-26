@@ -7,7 +7,7 @@
 
 services:
   opencloud:
-    image: junkerderprovinz/opencloud:rolling@sha256:05c0302c69cff7375ed11434b11bc479f4e0200b9fc6f1963018528bbc1e0420
+    image: junkerderprovinz/opencloud:rolling
     container_name: opencloud
     restart: unless-stopped
     ports:

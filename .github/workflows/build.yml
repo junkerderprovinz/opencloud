@@ -478,6 +478,8 @@ jobs:
     continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     steps:
       - name: Checkout (README for Docker Hub sync)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

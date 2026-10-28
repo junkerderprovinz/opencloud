@@ -90,6 +90,10 @@ FROM ${BASE}
 # hadolint ignore=DL3002
 USER root
 
+# Upstream rebuilds the base less often than Alpine ships security fixes, so
+# take the current packages before anything is layered on top.
+RUN apk upgrade --no-cache
+
 LABEL org.opencontainers.image.title="opencloud (Unraid wrapper)" \
       org.opencontainers.image.description="One-click OpenCloud for Unraid: auto-init, permission heal, PUID/PGID." \
       org.opencontainers.image.source="https://github.com/junkerderprovinz/opencloud" \

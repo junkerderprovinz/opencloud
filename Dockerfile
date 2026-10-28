@@ -72,7 +72,7 @@ COPY searchindex/ ./
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/searchindex .
 
 # The web extension is plain JS and CSS, so one build serves every platform.
-FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS brandingweb
+FROM --platform=$BUILDPLATFORM node:26-alpine@sha256:40cd011b55415bc894e45b02fdd5a5dfde056921b7d23a64c74f80497af48797 AS brandingweb
 WORKDIR /src
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable

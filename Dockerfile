@@ -39,7 +39,7 @@ ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 
 # Static gosu for the privilege drop, copied from the upstream multi-arch image
 # so the build does not depend on the base image having apk or apt.
-FROM tianon/gosu:1.20@sha256:b2d30a61e8f27a96f7fce6658bedc96b2af37927be8ed49c502f399c121e9953 AS gosu
+FROM tianon/gosu:1.20@sha256:572913c67c6b58baea3e5572fc10e4b42914463d8e8b3ab8e3fed077394c807f AS gosu
 
 # Base theme of the bundled OpenCloud version, for brandingd's dark-mode logo.
 # hadolint ignore=DL3006
@@ -56,7 +56,7 @@ RUN opencloud version --skip-services > /tmp/opencloud-version \
  && grep -q '"themes"' /tmp/base-theme.json
 
 # brandingd and logintemplate are static, so they cross-compile on the build host.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS brandingd
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS brandingd
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
@@ -64,7 +64,7 @@ COPY branding/server/ ./
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /out/ ./cmd/brandingd ./cmd/logintemplate
 
 # searchindex sets aside a search index the server cannot open, see the entrypoint.
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS searchindex
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb AS searchindex
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

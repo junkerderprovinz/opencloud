@@ -19,6 +19,15 @@
   "prConcurrentLimit": 6,
   "packageRules": [
     {
+      "description": "Node stays on 24 until 26 is tested. This covers the node image, node-version in setup-node (looked up as actions/node-versions), .nvmrc, engines and @types/node.",
+      "matchPackageNames": [
+        "node",
+        "actions/node-versions",
+        "@types/node"
+      ],
+      "allowedVersions": "<25"
+    },
+    {
       "description": "OpenCloud production + rolling base images track upstream's own floating :latest tag directly (see Dockerfile) -- no version to pin, no PR to merge. The weekly cron rebuild in build.yml keeps them current instead. Disabled here so Renovate does not propose pinning either to a digest, which would reintroduce the same PR-per-update friction one level down.",
       "matchPackageNames": [
         "opencloudeu/opencloud",

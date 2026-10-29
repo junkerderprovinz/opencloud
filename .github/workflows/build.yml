@@ -426,9 +426,13 @@ jobs:
           images: |
             ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME }}
             name=docker.io/${{ vars.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ vars.DOCKERHUB_USERNAME != '' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
+          # Left on auto, every semver tag would also get latest, the rolling
+          # channel included, and whichever channel finished last would own it.
+          flavor: |
+            latest=false
           tags: |
             type=raw,value=production,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
-            type=raw,value=latest,enable=${{ matrix.channel == 'production' && github.ref == 'refs/heads/main' }}
+            type=raw,value=latest,enable=${{ matrix.channel == 'production' && (github.ref_type == 'tag' || github.ref == 'refs/heads/main') }}
             type=semver,pattern={{version}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ matrix.channel == 'production' }}
             type=semver,pattern={{major}},enable=${{ matrix.channel == 'production' }}

@@ -76,7 +76,7 @@ FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:8a32c8cf649a49915a66e81e7a6
 WORKDIR /src
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
-COPY branding/web/package.json branding/web/pnpm-lock.yaml ./
+COPY branding/web/package.json branding/web/pnpm-lock.yaml branding/web/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY branding/web/ ./
 RUN pnpm build

@@ -141,11 +141,11 @@ Two channels are built from this wrapper, differing only in the upstream base im
 | Tag | Base image | For |
 |---|---|---|
 | `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 8.x), published about every three weeks. |
-| `junkerderprovinz/opencloud:latest` | `opencloudeu/opencloud:latest` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:production` is kept as an alias, same image. |
+| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud:latest` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:latest` is the same line at this image's newest release, so it moves only with a release. |
 
 **Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)), which retries the publish. A bus that stays silent for longer still stops the server on either channel, see [Troubleshooting](#the-log-ends-with-unable-to-publish-event-and-fatal-error---exiting). Since production is cut roughly twice a year, the stable line will not carry the fix for months.
 
-Pick `:latest` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches, with no waiting on a version-bump PR to get merged.
+Pick `:production` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches, with no waiting on a version-bump PR to get merged.
 
 <br>
 
@@ -233,7 +233,7 @@ The service finds OpenCloud's port through `PROXY_HTTP_ADDR`. To move OpenCloud 
 git clone https://github.com/junkerderprovinz/opencloud.git
 cd opencloud
 
-# production/latest channel (default base)
+# production channel (default base)
 docker build -t opencloud:dev .
 
 # rolling channel (reads the BASE_ROLLING pin from the Dockerfile)

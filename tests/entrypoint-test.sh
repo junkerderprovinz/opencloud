@@ -78,6 +78,10 @@ boot && {
     lacks_env PROXY_AUTOPROVISION_ACCOUNTS
     lacks_env PROXY_OIDC_REWRITE_WELLKNOWN
     lacks_env PROXY_ROLE_ASSIGNMENT_DRIVER
+    lacks_env PROXY_USER_OIDC_CLAIM
+    lacks_env PROXY_AUTOPROVISION_CLAIM_USERNAME
+    lacks_env GRAPH_USERNAME_MATCH
+    lacks_env PROXY_OIDC_AUDIENCES
     lacks_env PROXY_CSP_CONFIG_FILE_LOCATION
     [ ! -e "${case_dir}/config/csp.yaml" ] || fail "csp.yaml written without anything to add"
 }
@@ -124,6 +128,50 @@ boot -e OC_OIDC_ISSUER=https://id.example.com/application/o/opencloud/ && {
     has_env OC_OIDC_ISSUER=https://id.example.com/application/o/opencloud/
     has_env OC_EXCLUDE_RUN_SERVICES=idp
     has_env PROXY_CSP_CONFIG_FILE_LOCATION=/etc/opencloud/csp.yaml
+}
+done_case
+
+new_case "provider accounts are matched by sub and never by a local username"
+boot -e OIDC_ISSUER=https://id.example.com && {
+    has_env PROXY_USER_OIDC_CLAIM=sub
+    has_env PROXY_AUTOPROVISION_CLAIM_USERNAME=sub
+    has_env GRAPH_USERNAME_MATCH=none
+    if grep -q "WARNING: .*PROXY_USER_OIDC_CLAIM" "${case_dir}/log"; then
+        fail "warned about the default account matching"
+    fi
+}
+done_case
+
+new_case "matching accounts by another claim stays possible and is warned about"
+boot -e OIDC_ISSUER=https://id.example.com -e PROXY_USER_OIDC_CLAIM=preferred_username     -e PROXY_AUTOPROVISION_CLAIM_USERNAME=preferred_username -e GRAPH_USERNAME_MATCH=default && {
+    has_env PROXY_USER_OIDC_CLAIM=preferred_username
+    has_env PROXY_AUTOPROVISION_CLAIM_USERNAME=preferred_username
+    has_env GRAPH_USERNAME_MATCH=default
+    grep -q "WARNING: .*PROXY_USER_OIDC_CLAIM=preferred_username" "${case_dir}/log" || fail "no warning about local accounts"
+}
+done_case
+
+new_case "access tokens must be issued to the client ID"
+boot -e OIDC_ISSUER=https://id.example.com -e OIDC_CLIENT_ID=OpenCloud && {
+    has_env PROXY_OIDC_AUDIENCES=OpenCloud
+}
+done_case
+
+new_case "without a client ID access tokens must be issued to one of OpenCloud's own clients"
+boot -e OIDC_ISSUER=https://id.example.com -e OIDC_CLIENT_ID= && {
+    has_env PROXY_OIDC_AUDIENCES=web,OpenCloudDesktop,OpenCloudAndroid,OpenCloudIOS
+}
+done_case
+
+new_case "own audiences win"
+boot -e OIDC_ISSUER=https://id.example.com -e OIDC_CLIENT_ID=OpenCloud -e PROXY_OIDC_AUDIENCES=OpenCloud,account && {
+    has_env PROXY_OIDC_AUDIENCES=OpenCloud,account
+}
+done_case
+
+new_case "no audience check when access tokens are not verified as JWT"
+boot -e OIDC_ISSUER=https://id.example.com -e OIDC_CLIENT_ID=OpenCloud -e PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD=none && {
+    lacks_env PROXY_OIDC_AUDIENCES
 }
 done_case
 

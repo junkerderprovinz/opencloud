@@ -257,6 +257,22 @@ if [ -n "${_issuer}" ]; then
     # their first sign-in.
     export PROXY_OIDC_REWRITE_WELLKNOWN="${PROXY_OIDC_REWRITE_WELLKNOWN:-true}"
     export PROXY_AUTOPROVISION_ACCOUNTS="${PROXY_AUTOPROVISION_ACCOUNTS:-true}"
+    # OpenCloud finds an account by a claim, by default preferred_username, a
+    # name some providers let people choose. Whoever picks admin there would sign
+    # in as the admin that init created. The provider assigns the subject, so it
+    # cannot be set to admin or a demo user's name, and it often starts with a
+    # digit, which the default username rules refuse.
+    export PROXY_USER_OIDC_CLAIM="${PROXY_USER_OIDC_CLAIM:-sub}"
+    export PROXY_AUTOPROVISION_CLAIM_USERNAME="${PROXY_AUTOPROVISION_CLAIM_USERNAME:-sub}"
+    export GRAPH_USERNAME_MATCH="${GRAPH_USERNAME_MATCH:-none}"
+    if [ "${PROXY_USER_OIDC_CLAIM}" != "sub" ]; then
+        echo "[entrypoint] WARNING: PROXY_USER_OIDC_CLAIM=${PROXY_USER_OIDC_CLAIM} matches sign-ins to OpenCloud accounts by that claim, so whoever can set it to admin or to a demo user's name at the provider signs in as that account"
+    fi
+    # Without an audience OpenCloud accepts a token the provider issued to any
+    # other app as well. Versions before 8.1 ignore the variable.
+    if [ "${PROXY_OIDC_ACCESS_TOKEN_VERIFY_METHOD:-jwt}" = "jwt" ]; then
+        export PROXY_OIDC_AUDIENCES="${PROXY_OIDC_AUDIENCES:-${_client:-web,OpenCloudDesktop,OpenCloudAndroid,OpenCloudIOS}}"
+    fi
     _idp_where="accounts are created at first sign-in"
     if [ -n "${OIDC_ROLE_CLAIM:-}" ]; then
         export PROXY_ROLE_ASSIGNMENT_DRIVER="oidc"

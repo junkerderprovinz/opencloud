@@ -212,6 +212,9 @@ jobs:
           [ "$ok" = "1" ] || { echo "smoke failed"; exit 1; }
           echo "smoke passed"
 
+      - name: Entrypoint tests (${{ matrix.channel }}/${{ matrix.arch }})
+        run: sh tests/entrypoint-test.sh opencloud:smoke-${{ matrix.channel }}-${{ matrix.arch }}
+
       # The branding app runs only with BRANDING_APP=true, so it gets boots of its
       # own; the last one switches it off again on the same volumes.
       - name: Branding smoke (${{ matrix.channel }}/${{ matrix.arch }})

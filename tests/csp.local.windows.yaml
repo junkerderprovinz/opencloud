@@ -1,0 +1,11 @@
+﻿# my own additions
+---
+directives:
+  frame-src:   # embeds
+    - 'https://id.example.com/'
+    - "https://maps.example.com/"  # a map
+
+  img-src: ['https://tiles.example.com/', "https://office.example.com/"]
+  script-src:
+    - "'unsafe-eval'"
+  media-src: '''self'''

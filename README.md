@@ -112,6 +112,7 @@ The files and documents in these pictures are made up.
 - **Starts on the first try.** It runs `opencloud init` once, hands the config and data folders to `PUID`:`PGID` (Unraid's `nobody:users` by default) and drops to that user.
 - **Two channels.** `:rolling`, the template default, follows OpenCloud's newest releases, and `:production` its production line. Both are rebuilt every week, for amd64 and arm64. `:latest` is the production line at this image's newest release.
 - **Web office in three fields.** Pick [Euro Office](https://github.com/junkerderprovinz/euro-office), Collabora or OnlyOffice, and the container wires up OpenCloud's collaboration service, the proxy routes and the Content-Security-Policy. Euro Office runs under OpenCloud's own address, so it needs no certificate of its own.
+- **Sign-in through your own login provider.** Give it the address of Authentik, Keycloak, Pocket ID or another OpenID Connect provider and a client ID, and OpenCloud uses that sign-in instead of its own. Accounts appear at the first sign-in, and roles can come from the provider as well.
 - **Files apart from Data.** An optional **Files** path keeps your files on an array disk while the message bus, search index and accounts stay on a fast pool. The log warns at startup when either path goes through Unraid's share layer.
 - **A search index that cannot stop the server.** An index OpenCloud could not open is moved aside before the start and rebuilt in the background.
 - **Branding, if you want it.** An optional app lets admins set the name, slogan, logos, favicon and login background from the web interface.
@@ -141,9 +142,11 @@ docker run -d --name opencloud \
 
 **Editing documents.** Install [Euro Office](https://github.com/junkerderprovinz/euro-office) and set its JWT secret. Here, set **Web office suite** to `euro-office`, **Office document server URL** to the address its WebUI button opens, such as `http://192.168.1.10:9900`, and **Office WOPI secret** to the same text as that JWT secret. Collabora and OnlyOffice load the editor straight from their own server, so for them the URL has to be https.
 
+**Signing in through Authentik, Keycloak or Pocket ID.** Create a public client there, then set **Login provider URL** and **Login client ID** in the advanced settings. The [guide](docs/guide.md#sign-in-through-your-own-login-provider-optional) lists the redirect addresses to allow and how roles come across.
+
 **Behind a reverse proxy** that terminates TLS, set `PROXY_TLS=false`, `OC_URL` to the external address and `OC_INSECURE=false`, and point the proxy at port 9200.
 
-Configuration, Files and S3, the web office, the reverse proxy, updating and troubleshooting are explained step by step in the [guide](docs/guide.md).
+Configuration, Files and S3, the web office, sign-in through your own provider, the reverse proxy, updating and troubleshooting are explained step by step in the [guide](docs/guide.md).
 
 ### Other Docker hosts
 

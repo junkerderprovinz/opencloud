@@ -35,7 +35,7 @@ jobs:
         # The runner image ships shellcheck, so a slow apt mirror cannot stall the job.
         run: |
           shellcheck --version | head -n 2
-          shellcheck -S warning entrypoint.sh print-banner.sh
+          shellcheck -S warning entrypoint.sh print-banner.sh tests/*.sh
 
   xml-validate:
     name: XML Validation

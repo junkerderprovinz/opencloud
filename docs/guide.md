@@ -1,6 +1,6 @@
 # OpenCloud guide
 
-Everything beyond the first start: configuration, Files and S3, the web office, production and rolling images, the reverse proxy, branding, building, updating, troubleshooting and how the image is put together.
+Everything beyond the first start: configuration, Files and S3, the web office, sign-in through your own login provider, production and rolling images, the reverse proxy, branding, building, updating, troubleshooting and how the image is put together.
 
 ## Configuration
 
@@ -132,6 +132,58 @@ OpenCloud already has a built-in search: out of the box it matches **file and fo
 
 Under the hood the wrapper sets `SEARCH_EXTRACTOR_TYPE=tika`, `SEARCH_EXTRACTOR_TIKA_TIKA_URL` and `FRONTEND_FULL_TEXT_SEARCH_ENABLED=true` (plus `SEARCH_EXTRACTOR_CS3SOURCE_INSECURE=true` for the internal LAN cert). Only files uploaded or changed **after** this are content-indexed; existing files are **not** re-indexed automatically, so re-upload or edit a file to test. See the [OpenCloud search docs](https://docs.opencloud.eu/docs/dev/server/Services/search/Search-info/).
 
+### Sign-in through your own login provider (optional)
+
+If you already run Authentik, Keycloak, Pocket ID or another OpenID Connect provider, OpenCloud can use its sign-in instead of its own. Three advanced template fields set it up, and you don't have to touch `proxy.yaml` or `csp.yaml`.
+
+1. **At the provider**, create one client of type **public** (no client secret), for example with the client ID `OpenCloud`. If it asks about PKCE, choose `S256`. Allow these redirect URIs, with your own Public URL in place of `https://cloud.example.com`:
+
+   | Client | Redirect URIs |
+   |---|---|
+   | Web | `https://cloud.example.com/oidc-callback.html`, `https://cloud.example.com/oidc-silent-redirect.html`, `https://cloud.example.com/` |
+   | Desktop app | `http://127.0.0.1` and `http://localhost` on any port: the app picks a free one each time, so use the wildcard or regular expression your provider offers |
+   | Android, iOS | `oc://android.opencloud.eu`, `oc://ios.opencloud.eu` |
+
+   Where the provider asks for allowed origins (Keycloak calls them web origins), add `https://cloud.example.com`.
+2. **In the template**, under the advanced settings, set **Login provider URL** to the provider's issuer address and **Login client ID** to the client ID. Issuer addresses look like this:
+   - Authentik: `https://auth.example.com/application/o/opencloud/`
+   - Keycloak: `https://auth.example.com/realms/<realm>`
+   - Pocket ID: `https://id.example.com`
+3. Click **Apply**. The OpenCloud sign-in now goes to your provider, and each account is created in OpenCloud the first time that person signs in.
+
+The provider address has to be https, since a browser blocks an http sign-in inside the https OpenCloud page (the log warns about it). If you leave **Login client ID** empty, OpenCloud uses its own client IDs, and you create four clients at the provider instead of one: `web`, `OpenCloudDesktop`, `OpenCloudAndroid` and `OpenCloudIOS`.
+
+OpenCloud finds an account by the `preferred_username` claim, which Authentik, Keycloak and Pocket ID all send with the standard `openid profile email` scopes. It also takes `email` and `name` from the provider for new accounts. Keep usernames stable at the provider: if one changes, that person gets a new, empty account.
+
+**Roles.** With **Login role claim** empty, every new account gets the **User** role, and an admin changes roles in OpenCloud. Since the built-in `admin` can't sign in through your provider, you need the role claim at least once to get an admin. Set it to the name of a claim that holds roles or groups, for example `groups` (Authentik sends the user's groups in it) or `roles` (in Keycloak, add a mapper on the client that puts the realm roles into a claim called `roles`, for the userinfo too). OpenCloud then sets the role at every sign-in from these values:
+
+| Value in the claim | OpenCloud role |
+|---|---|
+| `opencloudAdmin` | Admin |
+| `opencloudSpaceAdmin` | Space Admin |
+| `opencloudUser` | User |
+| `opencloudGuest` | User Light |
+
+So name the groups or roles at the provider exactly like that. If someone has more than one, the first match in this order wins. If someone has none of them, OpenCloud refuses the sign-in and shows **Access denied**. Some providers send groups only when the app asks for an extra scope. OpenCloud's web client asks for `openid profile email`, which `WEB_OIDC_SCOPE` can extend.
+
+Under the hood the wrapper sets `OC_OIDC_ISSUER` and `OC_OIDC_CLIENT_ID`, adds `idp` to `OC_EXCLUDE_RUN_SERVICES` so the built-in login page is gone, and turns on `PROXY_OIDC_REWRITE_WELLKNOWN` (the desktop and mobile apps find the provider through OpenCloud's own address) and `PROXY_AUTOPROVISION_ACCOUNTS`. If you set either of the last two yourself, your value stays. A role claim sets `PROXY_ROLE_ASSIGNMENT_DRIVER=oidc` and `PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM`. The provider's address goes into the Content-Security-Policy under `connect-src`, where the web client fetches the token, and `frame-src`, where it renews the token in a hidden frame when the provider hands out no refresh token.
+
+### Your own Content-Security-Policy lines
+
+The wrapper writes `/etc/opencloud/csp.yaml` at every start, so anything you change there is lost on the next one. Put your own directives into `csp.local.yaml` in the same folder (on Unraid, the Config path, for example `/mnt/cache/appdata/opencloud/config/csp.local.yaml`):
+
+```yaml
+directives:
+  frame-src:
+    - 'https://maps.example.com/'
+  img-src:
+    - 'https://tiles.example.com/'
+```
+
+At the next start the wrapper merges it with what the web office and the login provider need, directive by directive and without duplicates, and OpenCloud adds the result to its own policy. CSP keywords keep their inner quotes, like `"'unsafe-eval'"`. A file saved on Windows works too. A line the wrapper can't read is skipped, and the log names the line.
+
+If you set `PROXY_CSP_CONFIG_FILE_LOCATION` yourself, the wrapper writes no `csp.yaml` and doesn't read `csp.local.yaml`. The log then prints the directives that the office editor or the sign-in need, for you to add to your own file.
+
 <br>
 
 ## Production vs Rolling
@@ -154,10 +206,11 @@ Pick `:production` instead if you would rather have OpenCloud's fully QA'd line 
 The entrypoint runs as root only long enough to prepare the volumes, then drops to your user:
 
 1. **Permission heal.** Creates `/etc/opencloud` + `/var/lib/opencloud` if missing and `chown`s them to `PUID:PGID`. The config dir is small and always fully healed; the data dir is only `chown -R`'d once (or after a `PUID`/`PGID` change), tracked by a `.uid-heal` sentinel, so a large data set is never recursively re-owned on every boot. The `nats` bus dir is always re-asserted (small, must stay writable).
-2. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
-3. **Search index check.** A bleve search index that OpenCloud cannot open would make the `search` service fail five times, and then the whole server stops. `searchindex` reads each index the way bleve loads it, and moves one that would fail to `<name>.broken`, so the service starts with a new, empty index. When a new index appears on data that already had one (after that move, or when an image update changes the index schema), the entrypoint indexes all spaces again in the background once the server is up. See [§10](#troubleshooting).
-4. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
-5. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
+2. **Office, sign-in and CSP.** The web office and login provider fields become OpenCloud's own variables (see [Web office](#web-office-optional) and [Sign-in](#sign-in-through-your-own-login-provider-optional)). What they need in the Content-Security-Policy goes into `csp.yaml`, merged with your [`csp.local.yaml`](#your-own-content-security-policy-lines).
+3. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
+4. **Search index check.** A bleve search index that OpenCloud cannot open would make the `search` service fail five times, and then the whole server stops. `searchindex` reads each index the way bleve loads it, and moves one that would fail to `<name>.broken`, so the service starts with a new, empty index. When a new index appears on data that already had one (after that move, or when an image update changes the index schema), the entrypoint indexes all spaces again in the background once the server is up. See [§10](#troubleshooting).
+5. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
+6. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
 <br>
 

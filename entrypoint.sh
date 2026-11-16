@@ -138,6 +138,7 @@ elif [ -f "${PROXY_FILE}" ]; then
     esac
 fi
 _proxy_routes=""
+_oc_csp=""
 
 case "${_office}" in
     collabora)                 _oc_app_name="CollaboraOnline"; _oc_app_product="Collabora" ;;
@@ -230,20 +231,202 @@ if [ -n "${_oc_app_name}" ] && [ -n "${OFFICE_SERVER_URL:-}" ]; then
     # secure-view role (exact default role set incl. secure-view, from opencloud-compose)
     export FRONTEND_APP_HANDLER_SECURE_VIEW_APP_ADDR="eu.opencloud.api.collaboration"
     export GRAPH_AVAILABLE_ROLES="${GRAPH_AVAILABLE_ROLES:-b1e2218d-eef8-4d4c-b82d-0f1a1b48f3b5,a8d5fe5e-96e3-418d-825b-534dbdf22b99,fb6c3e19-e378-47e5-b277-9732f9de6e21,58c63c02-1d89-4572-916a-870abc5a1b7d,2d00ce52-1fc2-4dbc-8b95-a73b73395f5a,1c996275-f1c9-4e71-abdf-a42f6495e960,312c0871-5ef7-4b3a-85b6-0e4074c64049,aa97fe03-7980-45ac-9e50-b325749fd7e6}"
-    # PROXY_CSP_CONFIG_FILE_LOCATION entries are merged into OpenCloud's
-    # built-in CSP, so the file only needs the additions.
-    if [ -z "${PROXY_CSP_CONFIG_FILE_LOCATION:-}" ]; then
-        printf '%s\n' "${_oc_csp}" > "${CONFIG_DIR}/csp.yaml"
-        chown "${PUID}:${PGID}" "${CONFIG_DIR}/csp.yaml" 2>/dev/null || true
-        export PROXY_CSP_CONFIG_FILE_LOCATION="${CONFIG_DIR}/csp.yaml"
-        echo "[entrypoint] web-office enabled: ${_oc_app_name} at ${_oc_office_where} (collaboration service on, CSP updated)"
-    else
-        echo "[entrypoint] web-office enabled: ${_oc_app_name} at ${_oc_office_where} (collaboration service on)"
-        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is already set; add these directives to that file yourself or the editor stays blank:"
-        printf '%s\n' "${_oc_csp}"
-    fi
+    echo "[entrypoint] web-office enabled: ${_oc_app_name} at ${_oc_office_where} (collaboration service on)"
 elif [ -n "${_oc_app_name}" ]; then
     echo "[entrypoint] OFFICE=${OFFICE} set but OFFICE_SERVER_URL is empty -> web-office not enabled"
+fi
+
+# Optional sign-in through an external login provider (Authentik, Keycloak,
+# Pocket ID, ...). The template fields have names of their own because Unraid
+# passes an empty field as an empty variable, and OpenCloud takes an empty
+# OC_OIDC_ISSUER as the issuer.
+_issuer="${OC_OIDC_ISSUER:-${OIDC_ISSUER:-}}"
+_idp_csp=""
+if [ -n "${_issuer}" ]; then
+    export OC_OIDC_ISSUER="${_issuer}"
+    _client="${OC_OIDC_CLIENT_ID:-${OIDC_CLIENT_ID:-}}"
+    if [ -n "${_client}" ]; then
+        export OC_OIDC_CLIENT_ID="${_client}"
+    fi
+    case ",${OC_EXCLUDE_RUN_SERVICES:-}," in
+        *,idp,*) ;;
+        *) export OC_EXCLUDE_RUN_SERVICES="${OC_EXCLUDE_RUN_SERVICES:+${OC_EXCLUDE_RUN_SERVICES},}idp" ;;
+    esac
+    # The desktop and mobile apps find the provider through OpenCloud's own
+    # /.well-known/openid-configuration, and nobody exists in OpenCloud before
+    # their first sign-in.
+    export PROXY_OIDC_REWRITE_WELLKNOWN="${PROXY_OIDC_REWRITE_WELLKNOWN:-true}"
+    export PROXY_AUTOPROVISION_ACCOUNTS="${PROXY_AUTOPROVISION_ACCOUNTS:-true}"
+    _idp_where="accounts are created at first sign-in"
+    if [ -n "${OIDC_ROLE_CLAIM:-}" ]; then
+        export PROXY_ROLE_ASSIGNMENT_DRIVER="oidc"
+        export PROXY_ROLE_ASSIGNMENT_OIDC_CLAIM="${OIDC_ROLE_CLAIM}"
+        _idp_where="${_idp_where}, roles come from the ${OIDC_ROLE_CLAIM} claim"
+    fi
+    case "${OC_URL}" in
+        https://*)
+            case "${_issuer}" in
+                http://*) echo "[entrypoint] WARNING: the login provider ${_issuer} is http but OpenCloud runs on https; browsers block the sign-in as mixed content, so use the provider's https address" ;;
+            esac
+            ;;
+    esac
+    # The web client fetches the provider's endpoints and renews its token in a
+    # hidden frame when the provider hands out no refresh token.
+    _idp_rest="${_issuer#*://}"
+    _idp_origin="${_issuer%%://*}://${_idp_rest%%/*}"
+    _idp_csp="directives:
+  connect-src:
+    - '${_idp_origin}/'
+  frame-src:
+    - '${_idp_origin}/'"
+    echo "[entrypoint] external login provider: ${_issuer} (built-in IdP off, ${_idp_where})"
+elif [ -n "${OIDC_ROLE_CLAIM:-}" ]; then
+    echo "[entrypoint] OIDC_ROLE_CLAIM is set but the login provider address is empty -> roles stay with OpenCloud"
+fi
+
+# Merges CSP files of the form "directives: / <name>: / - <source>" per
+# directive, in order of appearance and without duplicates, and prints the
+# result in OpenCloud's own quoting. The image has no YAML tool, so this reads
+# just that shape: block or flow lists, either quote style, comments, CRLF and
+# a BOM. Anything else is skipped with a warning.
+merge_csp() {
+    awk '
+        function warn(what) {
+            printf "[entrypoint] WARNING: %s line %d %s, skipped: %s\n", FILENAME, FNR, what, raw > "/dev/stderr"
+        }
+        function trim(s) {
+            sub(/^[ \t]+/, "", s)
+            sub(/[ \t]+$/, "", s)
+            return s
+        }
+        function uncomment(s,    i, c, q) {
+            q = ""
+            for (i = 1; i <= length(s); i++) {
+                c = substr(s, i, 1)
+                if (q != "") {
+                    if (c == q) q = ""
+                } else if (c == "\047" || c == "\"") {
+                    q = c
+                } else if (c == "#" && (i == 1 || substr(s, i - 1, 1) ~ /[ \t]/)) {
+                    return substr(s, 1, i - 1)
+                }
+            }
+            return s
+        }
+        function unquote(v,    q) {
+            q = substr(v, 1, 1)
+            if (length(v) >= 2 && (q == "\047" || q == "\"") && substr(v, length(v), 1) == q) {
+                v = substr(v, 2, length(v) - 2)
+                if (q == "\047") gsub("\047\047", "\047", v)
+                else gsub(/\\"/, "\"", v)
+            }
+            return v
+        }
+        function add(v) {
+            v = unquote(trim(v))
+            if (v == "") return
+            if (!(cur in known)) {
+                known[cur] = 1
+                order[++directives] = cur
+            }
+            if (!((cur, v) in seen)) {
+                seen[cur, v] = 1
+                values[cur, ++count[cur]] = v
+            }
+        }
+        function add_flow(s,    i, c, q, item) {
+            q = ""
+            item = ""
+            for (i = 1; i <= length(s); i++) {
+                c = substr(s, i, 1)
+                if (q != "") {
+                    if (c == q) q = ""
+                } else if (c == "\047" || c == "\"") {
+                    q = c
+                } else if (c == ",") {
+                    add(item)
+                    item = ""
+                    continue
+                }
+                item = item c
+            }
+            add(item)
+        }
+        FNR == 1 {
+            indir = 0
+            cur = ""
+            if (index($0, "\357\273\277") == 1) $0 = substr($0, 4)
+        }
+        {
+            sub(/\r$/, "")
+            raw = $0
+            line = uncomment($0)
+            sub(/[ \t]+$/, "", line)
+            if (line ~ /^[ \t]*$/ || line ~ /^---/) next
+            if (line !~ /^[ \t]/) {
+                indir = (line ~ /^directives:$/)
+                cur = ""
+                if (!indir) warn("is not under directives:")
+                next
+            }
+            if (!indir) next
+            if (line ~ /^[ \t]*-([ \t]|$)/) {
+                if (cur == "") warn("has no directive above it")
+                else add(substr(trim(line), 2))
+                next
+            }
+            if (match(line, /^[ \t]+[A-Za-z-]+:/)) {
+                cur = tolower(trim(substr(line, 1, RLENGTH - 1)))
+                rest = trim(substr(line, RLENGTH + 1))
+                if (rest ~ /^\[.*\]$/) add_flow(substr(rest, 2, length(rest) - 2))
+                else if (rest != "") add(rest)
+                next
+            }
+            warn("is not a CSP directive or source")
+        }
+        END {
+            if (!directives) exit
+            print "directives:"
+            for (i = 1; i <= directives; i++) {
+                d = order[i]
+                print "  " d ":"
+                for (j = 1; j <= count[d]; j++) {
+                    v = values[d, j]
+                    gsub("\047", "\047\047", v)
+                    print "    - \047" v "\047"
+                }
+            }
+        }
+    ' "$@"
+}
+
+# OpenCloud merges the file in PROXY_CSP_CONFIG_FILE_LOCATION into its built-in
+# Content-Security-Policy, so the wrapper's csp.yaml only carries additions:
+# the office editor, the login provider and the user's csp.local.yaml. Lines of
+# their own go into csp.local.yaml, since csp.yaml is rewritten at every start.
+CSP_FILE="${CONFIG_DIR}/csp.yaml"
+CSP_LOCAL="${CONFIG_DIR}/csp.local.yaml"
+CSP_MARKER="# managed by the opencloud Unraid wrapper and rewritten at every start; put your own directives into csp.local.yaml"
+_csp_local=""
+if [ -f "${CSP_LOCAL}" ]; then
+    _csp_local="${CSP_LOCAL}"
+fi
+# shellcheck disable=SC2086
+if [ -z "${PROXY_CSP_CONFIG_FILE_LOCATION:-}" ]; then
+    _csp="$(printf '%s\n%s\n' "${_oc_csp}" "${_idp_csp}" | merge_csp - ${_csp_local:+"${_csp_local}"})"
+    if [ -n "${_csp}" ]; then
+        printf '%s\n%s\n' "${CSP_MARKER}" "${_csp}" | ${DROP} sh -c 'cat > "$1"' sh "${CSP_FILE}"
+        export PROXY_CSP_CONFIG_FILE_LOCATION="${CSP_FILE}"
+        echo "[entrypoint] Content-Security-Policy additions written to ${CSP_FILE}"
+    fi
+else
+    if [ -n "${_oc_csp}${_idp_csp}" ]; then
+        echo "[entrypoint] NOTE: PROXY_CSP_CONFIG_FILE_LOCATION is set, so add these directives to ${PROXY_CSP_CONFIG_FILE_LOCATION} yourself, or the office editor or the sign-in is blocked:"
+        printf '%s\n%s\n' "${_oc_csp}" "${_idp_csp}" | merge_csp -
+    fi
+    if [ -n "${_csp_local}" ]; then
+        echo "[entrypoint] NOTE: ${CSP_LOCAL} is not read while PROXY_CSP_CONFIG_FILE_LOCATION is set"
+    fi
 fi
 
 # Optional full-text search. FULLTEXT_SEARCH=true turns on searching inside files,

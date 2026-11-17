@@ -2,6 +2,8 @@ module github.com/junkerderprovinz/opencloud/searchindex
 
 go 1.26
 
+toolchain go1.27.4
+
 require (
 	github.com/blevesearch/bleve/v2 v2.6.3
 	go.etcd.io/bbolt v1.5.0

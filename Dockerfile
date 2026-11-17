@@ -34,7 +34,10 @@
 # extracts from this file to build the :rolling channel with
 # `--build-arg BASE=<rolling>`, so both tags live in one place. Neither is
 # Renovate-tracked (see renovate.json); the weekly cron rebuild keeps them current.
-ARG BASE=opencloudeu/opencloud:latest
+# BASE names the production major instead of `latest`, because upstream moves
+# `latest` to whichever line it pushed last, the 4.0 LTS included, and a move to
+# the next production line needs manual upgrade steps.
+ARG BASE=opencloudeu/opencloud:7
 ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 
 # Static gosu for the privilege drop, copied from the upstream multi-arch image

@@ -694,7 +694,7 @@ fi
 # without it the server stops as soon as guest links are switched on. A config
 # from before 9 lacks it, so its first start on 9 applies OpenCloud's own config
 # migration (init --diff) once and keeps the old file as a backup. The patch
-# also drops the thumbnails block 9 no longer reads. One that would remove any
+# also drops the thumbnails block that 9 ignores. One that would remove any
 # other line, such as a setting added by hand, is left for the admin to review.
 # init --diff prints the secrets, so its output stays out of the log.
 CONFIG_FILE="${CONFIG_DIR}/opencloud.yaml"
@@ -706,7 +706,7 @@ if [ -f "${CONFIG_FILE}" ] && [ "${_oc_major:-0}" -ge 9 ] && ! grep -q '^auth_gu
     _backup="${CONFIG_FILE}.$(date +%Y-%m-%d-%H-%M-%S).backup"
     if ! ${DROP} env -u IDM_ADMIN_PASSWORD -u ADMIN_PASSWORD \
         opencloud init --diff --config-path "${CONFIG_DIR}" --insecure "${OC_INSECURE}" </dev/null >/dev/null 2>&1; then
-        echo "[entrypoint] WARNING: opencloud init --diff failed, so ${CONFIG_FILE} stays as it is and guest links cannot be switched on; see \"Moving production from 7.2 to 9.1\" in the guide"
+        echo "[entrypoint] WARNING: opencloud init --diff failed, so ${CONFIG_FILE} stays as it is and guest links cannot be switched on, see \"Moving production from 7.2 to 9.1\" in the guide"
     elif [ ! -f "${CONFIG_PATCH}" ]; then
         :
     elif ! awk '
@@ -716,7 +716,7 @@ if [ -f "${CONFIG_FILE}" ] && [ "${_oc_major:-0}" -ge 9 ] && ! grep -q '^auth_gu
         /^-/ && top != "thumbnails" { bad = 1 }
         END { exit bad }
     ' "${CONFIG_PATCH}"; then
-        echo "[entrypoint] WARNING: the OpenCloud 9 config migration in ${CONFIG_PATCH} would remove more than the old thumbnails settings, so ${CONFIG_FILE} stays as it is; review and apply it by hand, see \"Moving production from 7.2 to 9.1\" in the guide"
+        echo "[entrypoint] WARNING: the OpenCloud 9 config migration in ${CONFIG_PATCH} would remove more than the old thumbnails settings, so ${CONFIG_FILE} stays as it is. Review and apply it by hand, see \"Moving production from 7.2 to 9.1\" in the guide"
     elif ${DROP} cp -p "${CONFIG_FILE}" "${_backup}" \
         && ${DROP} patch --dry-run -s "${CONFIG_FILE}" "${CONFIG_PATCH}" >/dev/null \
         && ${DROP} patch -s "${CONFIG_FILE}" "${CONFIG_PATCH}" >/dev/null; then
@@ -724,7 +724,7 @@ if [ -f "${CONFIG_FILE}" ] && [ "${_oc_major:-0}" -ge 9 ] && ! grep -q '^auth_gu
         echo "[entrypoint] migrated ${CONFIG_FILE} for OpenCloud 9 (guest link service account added), the previous file is ${_backup}"
     else
         ${DROP} cp -p "${_backup}" "${CONFIG_FILE}" || true
-        echo "[entrypoint] WARNING: could not apply ${CONFIG_PATCH}, so ${CONFIG_FILE} stays as it is; see \"Moving production from 7.2 to 9.1\" in the guide"
+        echo "[entrypoint] WARNING: could not apply ${CONFIG_PATCH}, so ${CONFIG_FILE} stays as it is, see \"Moving production from 7.2 to 9.1\" in the guide"
     fi
 fi
 

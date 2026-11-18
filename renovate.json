@@ -28,7 +28,7 @@
       "allowedVersions": "<25"
     },
     {
-      "description": "OpenCloud production + rolling base images track upstream's own floating :latest tag directly (see Dockerfile) -- no version to pin, no PR to merge. The weekly cron rebuild in build.yml keeps them current instead. Disabled here so Renovate does not propose pinning either to a digest, which would reintroduce the same PR-per-update friction one level down.",
+      "description": "The OpenCloud base images follow floating upstream tags (production its major, rolling :latest, see Dockerfile), and the weekly rebuild in build.yml keeps them current. Renovate would only propose digest pins, one PR per upstream build.",
       "matchPackageNames": [
         "opencloudeu/opencloud",
         "opencloudeu/opencloud-rolling"
@@ -116,18 +116,6 @@
         "typescript"
       ],
       "allowedVersions": "<7"
-    },
-    {
-      "description": "The branding extension runs inside both images, and the production one (opencloudeu/opencloud) is still on OpenCloud 7",
-      "matchFileNames": [
-        "branding/web/package.json"
-      ],
-      "matchPackageNames": [
-        "@opencloud-eu/extension-sdk",
-        "@opencloud-eu/web-client",
-        "@opencloud-eu/web-pkg"
-      ],
-      "allowedVersions": "<8"
     },
     {
       "description": "The compose file is for people to copy, so it follows the app's own latest tag instead of a digest that goes stale every build",

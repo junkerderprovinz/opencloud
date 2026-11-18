@@ -15,16 +15,10 @@
 #     OpenCloud would stop altogether
 #
 # Two channels, selected with --build-arg BASE=...:
-#   :production  ->  opencloudeu/opencloud:latest          (default, BASE below)
+#   :production  ->  opencloudeu/opencloud:9               (default, BASE below)
 #   :rolling     ->  opencloudeu/opencloud-rolling:latest  (BASE_ROLLING, CI reads it)
-# Both track upstream's floating tag without a version pin; the weekly cron
+# Both track a floating upstream tag without a version pin; the weekly cron
 # rebuild in build.yml republishes whatever each tag points to.
-#
-# The :production line is OpenCloud's slow, stable train and does not carry
-# reva#720 (the incremental-fsync fix for large-folder sync aborts, issue #3027)
-# until OpenCloud cuts a stable release that includes it; the :rolling image has
-# it since 7.3.0. For the newest OpenCloud, and to avoid the sync-abort bug on
-# slow (array or FUSE) storage, run the :rolling channel.
 #
 # Licensing: this wrapper (Dockerfile, scripts, banner, brandingd and the web
 # extension) is AGPL-3.0-only; the OpenCloud binary in the base image is
@@ -35,9 +29,10 @@
 # `--build-arg BASE=<rolling>`, so both tags live in one place. Neither is
 # Renovate-tracked (see renovate.json); the weekly cron rebuild keeps them current.
 # BASE names the production major instead of `latest`, because upstream moves
-# `latest` to whichever line it pushed last, the 4.0 LTS included, and a move to
-# the next production line needs manual upgrade steps.
-ARG BASE=opencloudeu/opencloud:7
+# `latest` to whichever line it pushed last, the 4.0 LTS included
+# (opencloud-eu/opencloud#4048), and a move to the next production line needs
+# upgrade steps, see "Production vs Rolling" in docs/guide.md.
+ARG BASE=opencloudeu/opencloud:9
 ARG BASE_ROLLING=opencloudeu/opencloud-rolling:latest
 
 # Static gosu for the privilege drop, copied from the upstream multi-arch image

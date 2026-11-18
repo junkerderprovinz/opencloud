@@ -11,7 +11,7 @@
     "test:unit": "vitest"
   },
   "devDependencies": {
-    "@opencloud-eu/extension-sdk": "8.2.2",
+    "@opencloud-eu/extension-sdk": "8.3.0",
     "@opencloud-eu/tsconfig": "^8.0.0",
     "@opencloud-eu/web-client": "^8.2.2",
     "@opencloud-eu/web-pkg": "^8.2.2",

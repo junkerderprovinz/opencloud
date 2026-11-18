@@ -183,8 +183,8 @@ importers:
   .:
     devDependencies:
       '@opencloud-eu/extension-sdk':
-        specifier: 8.2.2
-        version: 8.2.2(debug@4.4.3)(node-fetch@3.3.2)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vitest@5.1.0(@types/node@22.20.3)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0)))(vue-tsc@3.3.14(typescript@6.0.3))(vue@3.5.45(typescript@6.0.3))
+        specifier: 8.3.0
+        version: 8.3.0(debug@4.4.3)(node-fetch@3.3.2)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vitest@5.1.0(@types/node@22.20.3)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0)))(vue-tsc@3.3.14(typescript@6.0.3))(vue@3.5.45(typescript@6.0.3))
       '@opencloud-eu/tsconfig':
         specifier: ^8.0.0
         version: 8.3.0
@@ -390,8 +390,8 @@ packages:
     peerDependencies:
       pinia: ^3.0.3 || ^4.0.0
 
-  '@opencloud-eu/extension-sdk@8.2.2':
-    resolution: {integrity: sha512-8xO14EIMPt0ij7ktb6BaIIWrEiXOWzu142+sKvUV/fYlDaFjhlyvrdvzQp/k3oIVRyN07UOoh8GkWTjtdiXCdQ==}
+  '@opencloud-eu/extension-sdk@8.3.0':
+    resolution: {integrity: sha512-L9Y2DACiaqN+Faa/DFZynjbWgwE1BsrENi7/X7OmiIlolMdjXb9llKkN/3LVA5LPTWWODW/IBFfx546JQNABDQ==}
     peerDependencies:
       vite: ^7.2.0 || ^8.0.0
       vitest: ^4.0.0 || ^5.0.0
@@ -2661,7 +2661,7 @@ snapshots:
       - vue
       - webpack
 
-  '@opencloud-eu/extension-sdk@8.2.2(debug@4.4.3)(node-fetch@3.3.2)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vitest@5.1.0(@types/node@22.20.3)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0)))(vue-tsc@3.3.14(typescript@6.0.3))(vue@3.5.45(typescript@6.0.3))':
+  '@opencloud-eu/extension-sdk@8.3.0(debug@4.4.3)(node-fetch@3.3.2)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vitest@5.1.0(@types/node@22.20.3)(happy-dom@21.0.4)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0)))(vue-tsc@3.3.14(typescript@6.0.3))(vue@3.5.45(typescript@6.0.3))':
     dependencies:
       '@module-federation/vite': 1.14.2(debug@4.4.3)(node-fetch@3.3.2)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vue-tsc@3.3.14(typescript@6.0.3))
       '@tailwindcss/vite': 4.3.3(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))

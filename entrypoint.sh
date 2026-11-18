@@ -690,6 +690,44 @@ if [ "${STORAGE_USERS_DRIVER:-posix}" = "posix" ]; then
     fi
 fi
 
+# OpenCloud 9 reads a service account for guest links from opencloud.yaml, and
+# without it the server stops as soon as guest links are switched on. A config
+# from before 9 lacks it, so its first start on 9 applies OpenCloud's own config
+# migration (init --diff) once and keeps the old file as a backup. The patch
+# also drops the thumbnails block 9 no longer reads. One that would remove any
+# other line, such as a setting added by hand, is left for the admin to review.
+# init --diff prints the secrets, so its output stays out of the log.
+CONFIG_FILE="${CONFIG_DIR}/opencloud.yaml"
+CONFIG_PATCH="${CONFIG_DIR}/opencloud.config.patch"
+_oc_major="$(opencloud version --skip-services 2>/dev/null | awk '/^Version:/ { split($2, v, "."); print v[1] + 0; exit }')"
+# shellcheck disable=SC2086
+if [ -f "${CONFIG_FILE}" ] && [ "${_oc_major:-0}" -ge 9 ] && ! grep -q '^auth_guest:' "${CONFIG_FILE}"; then
+    ${DROP} rm -f "${CONFIG_PATCH}"
+    _backup="${CONFIG_FILE}.$(date +%Y-%m-%d-%H-%M-%S).backup"
+    if ! ${DROP} env -u IDM_ADMIN_PASSWORD -u ADMIN_PASSWORD \
+        opencloud init --diff --config-path "${CONFIG_DIR}" --insecure "${OC_INSECURE}" </dev/null >/dev/null 2>&1; then
+        echo "[entrypoint] WARNING: opencloud init --diff failed, so ${CONFIG_FILE} stays as it is and guest links cannot be switched on; see \"Moving production from 7.2 to 9.1\" in the guide"
+    elif [ ! -f "${CONFIG_PATCH}" ]; then
+        :
+    elif ! awk '
+        /^(---|\+\+\+) / { next }
+        /^@@/ { top = ""; next }
+        /^[- ][^ ]/ { top = substr($0, 2); sub(/:.*/, "", top) }
+        /^-/ && top != "thumbnails" { bad = 1 }
+        END { exit bad }
+    ' "${CONFIG_PATCH}"; then
+        echo "[entrypoint] WARNING: the OpenCloud 9 config migration in ${CONFIG_PATCH} would remove more than the old thumbnails settings, so ${CONFIG_FILE} stays as it is; review and apply it by hand, see \"Moving production from 7.2 to 9.1\" in the guide"
+    elif ${DROP} cp -p "${CONFIG_FILE}" "${_backup}" \
+        && ${DROP} patch --dry-run -s "${CONFIG_FILE}" "${CONFIG_PATCH}" >/dev/null \
+        && ${DROP} patch -s "${CONFIG_FILE}" "${CONFIG_PATCH}" >/dev/null; then
+        ${DROP} rm -f "${CONFIG_PATCH}"
+        echo "[entrypoint] migrated ${CONFIG_FILE} for OpenCloud 9 (guest link service account added), the previous file is ${_backup}"
+    else
+        ${DROP} cp -p "${_backup}" "${CONFIG_FILE}" || true
+        echo "[entrypoint] WARNING: could not apply ${CONFIG_PATCH}, so ${CONFIG_FILE} stays as it is; see \"Moving production from 7.2 to 9.1\" in the guide"
+    fi
+fi
+
 # First-boot init writes ${CONFIG_DIR}/opencloud.yaml and consumes
 # IDM_ADMIN_PASSWORD. On later boots the file exists and init exits non-zero,
 # which is ignored.

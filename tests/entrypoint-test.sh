@@ -294,4 +294,81 @@ boot -e PROXY_CSP_CONFIG_FILE_LOCATION=/etc/opencloud/my-csp.yaml \
 }
 done_case
 
+# A config as OpenCloud 7 writes it, and the same after the 9 migration.
+config_7() {
+    cat <<'EOF'
+graph:
+  service_account:
+    service_account_id: sa-id
+    service_account_secret: sa-secret
+thumbnails:
+  thumbnail:
+    transfer_secret: old
+search:
+  events:
+    tls_insecure: true
+EOF
+}
+config_9() {
+    cat <<'EOF'
+graph:
+  service_account:
+    service_account_id: sa-id
+    service_account_secret: sa-secret
+auth_guest:
+  service_account:
+    service_account_id: sa-id
+    service_account_secret: sa-secret
+search:
+  events:
+    tls_insecure: true
+EOF
+}
+
+new_case "a config from before OpenCloud 9 gets the guest link account and keeps a backup"
+config_7 >"${case_dir}/config/opencloud.yaml"
+config_9 >"${case_dir}/want"
+diff -u "${case_dir}/config/opencloud.yaml" "${case_dir}/want" >"${case_dir}/config/diff.patch" || true
+boot -e STUB_VERSION=9.1.1 && {
+    cmp -s "${case_dir}/want" "${case_dir}/config/opencloud.yaml" || fail "opencloud.yaml was not migrated"
+    backup="$(find "${case_dir}/config" -name 'opencloud.yaml.*.backup' | head -n 1)"
+    if [ -z "${backup}" ]; then
+        fail "no backup of opencloud.yaml"
+    else
+        config_7 | cmp -s - "${backup}" || fail "the backup is not the old opencloud.yaml"
+    fi
+    [ ! -e "${case_dir}/config/opencloud.config.patch" ] || fail "the applied patch was left behind"
+    grep -qx "diff admin-password=unset" "${case_dir}/config/stub-calls" || fail "init --diff ran with the admin password set"
+    grep -q "migrated /etc/opencloud/opencloud.yaml for OpenCloud 9" "${case_dir}/log" || fail "the log does not mention the migration"
+}
+done_case
+
+new_case "a migration that would drop other settings is left for review"
+{ config_7; printf 'proxy:\n  my_setting: kept\n'; } >"${case_dir}/config/opencloud.yaml"
+cp "${case_dir}/config/opencloud.yaml" "${case_dir}/before"
+config_9 >"${case_dir}/want"
+diff -u "${case_dir}/before" "${case_dir}/want" >"${case_dir}/config/diff.patch" || true
+boot -e STUB_VERSION=9.1.1 && {
+    cmp -s "${case_dir}/before" "${case_dir}/config/opencloud.yaml" || fail "opencloud.yaml was changed"
+    [ -e "${case_dir}/config/opencloud.config.patch" ] || fail "the patch to review is gone"
+    [ -z "$(find "${case_dir}/config" -name 'opencloud.yaml.*.backup')" ] || fail "a backup was written without a migration"
+    grep -q "WARNING: the OpenCloud 9 config migration" "${case_dir}/log" || fail "no warning about the patch"
+}
+done_case
+
+new_case "a config that has the guest link account is not diffed again"
+config_9 >"${case_dir}/config/opencloud.yaml"
+boot -e STUB_VERSION=9.1.1 && {
+    [ ! -e "${case_dir}/config/stub-calls" ] || fail "init --diff ran"
+}
+done_case
+
+new_case "OpenCloud 7 leaves its config alone"
+config_7 >"${case_dir}/config/opencloud.yaml"
+boot -e STUB_VERSION=7.2.6 && {
+    [ ! -e "${case_dir}/config/stub-calls" ] || fail "init --diff ran"
+    config_7 | cmp -s - "${case_dir}/config/opencloud.yaml" || fail "opencloud.yaml was changed"
+}
+done_case
+
 exit "${failed}"

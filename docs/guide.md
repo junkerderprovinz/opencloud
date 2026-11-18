@@ -194,12 +194,61 @@ Two channels are built from this wrapper, differing only in the upstream base im
 
 | Tag | Base image | For |
 |---|---|---|
-| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 9.x), published about every three weeks. |
-| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud:7` | OpenCloud's production line (currently the 7.2.x train), fully QA'd and cut about every six months. `:latest` is the same line at this image's newest release, so it moves only with a release. |
+| `junkerderprovinz/opencloud:rolling` | `opencloudeu/opencloud-rolling:latest` | **Default.** Newest OpenCloud releases (currently 9.2), published about every three weeks. |
+| `junkerderprovinz/opencloud:production` | `opencloudeu/opencloud:9` | OpenCloud's production line (currently 9.1), fully QA'd and cut about every six months. `:latest` is the same line at this image's newest release, so it moves only with a release. |
 
-**Which channel?** Rolling is the default because the production line still carries two problems that bite on Unraid. As of 7.2.x it lacks the incremental-fsync fix (reva#720) for the large-folder sync abort on slow storage (issue #3027), which shipped in 7.3.0. More seriously, it treats a failed postprocessing event publish as fatal and ends the whole server process, so a single transient `nats: timeout` can take the container down; that was fixed in 7.5.0 ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)), which retries the publish. A bus that stays silent for longer still stops the server on either channel, see [Troubleshooting](#the-log-ends-with-unable-to-publish-event-and-fatal-error---exiting). Since production is cut roughly twice a year, the stable line will not carry the fix for months.
+**Which channel?** Rolling gets every fix first, so it stays the default. Production 9.1 has the two fixes that mattered most on Unraid: the incremental fsync for large-folder syncs on slow storage (reva#720), and a postprocessing publish that no longer ends the server on a single `nats: timeout` ([#3347](https://github.com/opencloud-eu/opencloud/pull/3347)). A bus that stays silent for longer still stops the server on either channel, see [Troubleshooting](#the-log-ends-with-unable-to-publish-event-and-fatal-error---exiting).
 
-Pick `:production` instead if you would rather have OpenCloud's fully QA'd line and your data volume already sits on a fast SSD/NVMe pool, which avoids the stall on its own. Switch by changing the **Repository** tag in the Unraid template. Back up your appdata before switching channels. Going from `:production` to `:rolling` skips several OpenCloud releases, so read OpenCloud's [upgrade notes](https://docs.opencloud.eu/docs/next/admin/maintenance/upgrade/upgrade-9.x.x) for each major version in between first. Both channels track OpenCloud's own upstream `:latest` tag directly, and the weekly rebuild picks it up automatically alongside Alpine security patches, with no waiting on a version-bump PR to get merged.
+Pick `:production` if you'd rather have OpenCloud's fully QA'd line. Switch by changing the **Repository** tag in the Unraid template, and back up your appdata first. Moving from production to rolling works at any time. The other way round only works once production has caught up with the version you ran on rolling, because OpenCloud doesn't support going back to an older version. Production follows OpenCloud's major version instead of its `latest` tag, which can point at the older 4.0 line. The weekly rebuild picks up new OpenCloud releases and Alpine patches on both channels.
+
+### Moving production from 7.2 to 9.1
+
+With version 1.5.0 of this image, `:production` and `:latest` move from OpenCloud 7.2 to 9.1. OpenCloud supports this jump directly, and the container does the two steps it needs by itself on the first start:
+
+- **Config.** OpenCloud 9 needs a service account for guest links in `opencloud.yaml`. The container applies OpenCloud's own config migration (`opencloud init --diff`) once and keeps the old file as `opencloud.yaml.<date>.backup` in the Config folder. The migration also drops the thumbnail settings that 9 no longer reads.
+- **Search.** OpenCloud 9 starts a new, empty search index in `search/bleve-v5`. The container indexes all spaces into it in the background, so older files turn up in search again once that is done.
+
+To upgrade:
+
+1. **Back up.** Stop the container and copy the Config and Data folders, for example in the Unraid terminal (use the paths from your template):
+
+   ```bash
+   docker stop OpenCloud
+   tar -czf /mnt/cache/opencloud-7.2-backup.tar.gz -C /mnt/cache/appdata opencloud
+   ```
+
+   If you use a separate [Files](#files-in-a-separate-folder-optional) folder, make sure your backup has it too.
+2. **Update.** On the **Docker** tab, apply the update Unraid offers for OpenCloud, or click its icon and pick **Force Update**.
+3. **Watch the log** on the first start. These lines show both steps:
+
+   ```
+   [entrypoint] migrated /etc/opencloud/opencloud.yaml for OpenCloud 9 (guest link service account added), the previous file is /etc/opencloud/opencloud.yaml.2026-11-18-02-01-42.backup
+   [entrypoint] filling the new search index, indexing all spaces in the background
+   [entrypoint] search index rebuilt
+   ```
+
+   With many files the last line can take a while, and until then search misses files from before the update.
+4. **Check** that you can sign in, open files, shares and public links, and find an older file through search.
+5. **Tidy up** once everything works. The old search index and thumbnail cache are no longer used:
+
+   ```bash
+   docker exec OpenCloud rm -rf /var/lib/opencloud/search/bleve /var/lib/opencloud/thumbnails/files
+   ```
+
+   The `opencloud.yaml.*.backup` file in the Config folder can go as well.
+
+**If the log warns about the config migration.** The line `the OpenCloud 9 config migration ... would remove more than the old thumbnails settings` means your `opencloud.yaml` holds settings of your own, so the container leaves it alone. OpenCloud starts anyway. Only guest links can't be switched on until the patch is in. Look at the patch in the container console and apply it by hand. Lines starting with `-` get removed, so add back any of your own settings afterwards:
+
+```bash
+cd /etc/opencloud
+cat opencloud.config.patch
+patch --dry-run opencloud.yaml < opencloud.config.patch
+patch opencloud.yaml < opencloud.config.patch
+```
+
+**Settings of your own.** If you set `GRAPH_SPACES_DEFAULT_QUOTA`, rename it to `OC_SPACES_DEFAULT_QUOTA`, otherwise the apps show a quota of 1 GB. `THUMBNAILS_*` variables have new names. Behind your own reverse proxy with collaborative editing (Yjs) on, pass `/yjs` through as a WebSocket. OpenCloud's [upgrade guide for 9.1](https://docs.opencloud.eu/docs/next/admin/maintenance/upgrade/production/upgrade-9.1.x) has the details.
+
+**Going back.** Stop the container, restore the backup into the Config and Data folders, and set **Repository** to `junkerderprovinz/opencloud:1.4.8`, the last image with OpenCloud 7.2.
 
 <br>
 
@@ -211,8 +260,9 @@ The entrypoint runs as root only long enough to prepare the volumes, then drops 
 2. **Office, sign-in and CSP.** The web office and login provider fields become OpenCloud's own variables (see [Web office](#web-office-optional) and [Sign-in](#sign-in-through-your-own-login-provider-optional)). What they need in the Content-Security-Policy goes into `csp.yaml`, merged with your [`csp.local.yaml`](#your-own-content-security-policy-lines).
 3. **Branding app.** With `BRANDING_APP=true` the entrypoint copies the web extension into the data volume, writes the managed `proxy.yaml` (unless you have your own, see [§7](#branding)) and starts `brandingd` as `PUID:PGID` on `127.0.0.1:9299`. It also points `IDP_ASSET_PATH` at the image's copy of OpenCloud's login page, unless you set that variable yourself. The copy adds one script, which loads the saved branding from `brandingd`. With `false` it removes the extension and the managed `proxy.yaml`. Whenever a saved branding exists, it also runs `brandingd -regenerate` once, app on or off, so the branding follows the base theme of the current image.
 4. **Search index check.** A bleve search index that OpenCloud cannot open would make the `search` service fail five times, and then the whole server stops. `searchindex` reads each index the way bleve loads it, and moves one that would fail to `<name>.broken`, so the service starts with a new, empty index. When a new index appears on data that already had one (after that move, or when an image update changes the index schema), the entrypoint indexes all spaces again in the background once the server is up. See [§10](#troubleshooting).
-5. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
-6. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
+5. **Config migration.** On the first start of OpenCloud 9 with a config from an older version, applies OpenCloud's own config migration once and keeps a backup, see [Moving production from 7.2 to 9.1](#moving-production-from-72-to-91).
+6. **Init.** Runs `opencloud init` as the target user (writes `opencloud.yaml`, consuming `IDM_ADMIN_PASSWORD`). It is idempotent and harmlessly errors once the config exists.
+7. **Hand-off.** Prints the ready banner, then `exec`s `opencloud server` dropped to `PUID:PGID` via a static `gosu` (copied from the upstream `tianon/gosu` image, so the base needs no package manager).
 
 <br>
 
@@ -429,7 +479,7 @@ If `/var/lib/opencloud/branding/state.json` is not valid JSON, the container mov
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  opencloudeu/opencloud[:latest] | opencloud-rolling          │
+│  opencloudeu/opencloud:9 | opencloud-rolling                 │
 │  (Alpine base + the OpenCloud binary, unmodified)            │
 │  ┌────────────────────────────────────────────────────────┐  │
 │  │  entrypoint.sh  (runs as root)                         │  │

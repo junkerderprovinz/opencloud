@@ -203,7 +203,7 @@ Pick `:production` if you'd rather have OpenCloud's fully QA'd line. Switch by c
 
 ### Moving production from 7.2 to 9.1
 
-With version 1.5.0 of this image, `:production` and `:latest` move from OpenCloud 7.2 to 9.1. OpenCloud supports this jump directly, and the container does the two steps it needs by itself on the first start:
+With version 1.4.9 of this image, `:production` and `:latest` move from OpenCloud 7.2 to 9.1. OpenCloud supports this jump directly, and the container does the two steps it needs by itself on the first start:
 
 - **Config.** OpenCloud 9 needs a service account for guest links in `opencloud.yaml`. The container applies OpenCloud's own config migration (`opencloud init --diff`) once and keeps the old file as `opencloud.yaml.<date>.backup` in the Config folder. The migration also drops the thumbnail settings that 9 no longer reads.
 - **Search.** OpenCloud 9 starts a new, empty search index in `search/bleve-v5`. The container indexes all spaces into it in the background, so older files turn up in search again once that is done.

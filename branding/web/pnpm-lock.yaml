@@ -190,7 +190,7 @@ importers:
         version: 8.3.0
       '@opencloud-eu/web-client':
         specifier: ^8.2.2
-        version: 8.2.2(debug@4.4.3)
+        version: 8.3.0(debug@4.4.3)
       '@opencloud-eu/web-pkg':
         specifier: ^8.2.2
         version: 8.2.2(@floating-ui/dom@1.8.0)(@tiptap/extension-code-block@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@tiptap/extensions@3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3))(@vue/compiler-sfc@3.5.45)(@vue/devtools-api@8.2.1)(debug@4.4.3)(prosemirror-model@1.25.11)(prosemirror-state@1.4.4)(prosemirror-view@1.42.3)(rolldown@1.2.18)(typescript@6.0.3)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vue@3.5.45(typescript@6.0.3))
@@ -399,8 +399,8 @@ packages:
   '@opencloud-eu/tsconfig@8.3.0':
     resolution: {integrity: sha512-wm+ESmeOIEh/wSUeLD0+QOyfV80r49ywqKzvAnRqeMSeyjoBWU3neQ8flSwNJgVYv61Axi0GW9ax/EOudNGVYw==}
 
-  '@opencloud-eu/web-client@8.2.2':
-    resolution: {integrity: sha512-v7iFjfyN4aoiIz37tBzTQKmF8nqxFIzU66L3zl6QpyMK+h0M8Jhq46d2S5hamfunJXZWsgxx9d6o7Gi4dNWZkg==}
+  '@opencloud-eu/web-client@8.3.0':
+    resolution: {integrity: sha512-SDzsBn/ppjq92IAuZI/zPw49PgLSzzOtuHTjzHTGaeyoWB7oTrixzvSxGSfgwRrZgBveSbiQRRNGtZ5dJ+Clnw==}
 
   '@opencloud-eu/web-pkg@8.2.2':
     resolution: {integrity: sha512-eUNLv+8sZZHLc12MNHFEoTHYQdGIG+Ytg2f02+TP76sJFL87SdTghRpJS/8aQahJ5qBA0kiFMf7YIxnlSt+DnA==}
@@ -2682,7 +2682,7 @@ snapshots:
 
   '@opencloud-eu/tsconfig@8.3.0': {}
 
-  '@opencloud-eu/web-client@8.2.2(debug@4.4.3)':
+  '@opencloud-eu/web-client@8.3.0(debug@4.4.3)':
     dependencies:
       '@casl/ability': 7.0.1
       '@microsoft/fetch-event-source': 2.0.1
@@ -2703,7 +2703,7 @@ snapshots:
       '@hocuspocus/provider': 4.7.0(y-protocols@1.0.7(yjs@13.6.32))(yjs@13.6.32)
       '@microsoft/fetch-event-source': 2.0.1
       '@opencloud-eu/design-system': 8.2.2(@vue/compiler-sfc@3.5.45)(pinia@4.0.3(@vue/devtools-api@8.2.1)(typescript@6.0.3)(vue@3.5.45(typescript@6.0.3)))(rolldown@1.2.18)(vite@8.3.8(@types/node@22.20.3)(jiti@2.7.0))(vue@3.5.45(typescript@6.0.3))
-      '@opencloud-eu/web-client': 8.2.2(debug@4.4.3)
+      '@opencloud-eu/web-client': 8.3.0(debug@4.4.3)
       '@tiptap/core': 3.31.3(@tiptap/pm@3.31.3)
       '@tiptap/extension-bubble-menu': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))(@tiptap/pm@3.31.3)
       '@tiptap/extension-code': 3.31.3(@tiptap/core@3.31.3(@tiptap/pm@3.31.3))

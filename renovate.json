@@ -1,32 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests",
-    ":semanticCommits",
-    ":dependencyDashboard",
-    ":enableVulnerabilityAlertsWithLabel(security)",
-    "docker:pinDigests"
+    "local>junkerderprovinz/junkerderprovinz//renovate/base"
   ],
-  "timezone": "Europe/Vienna",
-  "schedule": [
-    "before 6am on monday"
-  ],
-  "labels": [
-    "dependencies"
-  ],
-  "prHourlyLimit": 4,
-  "prConcurrentLimit": 6,
   "packageRules": [
-    {
-      "description": "Node stays on 24 until 26 is tested. This covers the node image, node-version in setup-node (looked up as actions/node-versions), .nvmrc, engines and @types/node.",
-      "matchPackageNames": [
-        "node",
-        "actions/node-versions",
-        "@types/node"
-      ],
-      "allowedVersions": "<25"
-    },
     {
       "description": "The OpenCloud base images follow floating upstream tags (production its major, rolling :latest, see Dockerfile), and the weekly rebuild in build.yml keeps them current. Renovate would only propose digest pins, one PR per upstream build.",
       "matchPackageNames": [
@@ -44,25 +21,6 @@
       "commitMessagePrefix": "build:",
       "labels": [
         "base-image"
-      ]
-    },
-    {
-      "description": "GitHub Actions: auto-merge all updates. No CI runs on PRs, so platformAutomerge merges as soon as the PR is open.",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "major",
-        "minor",
-        "patch",
-        "digest"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true,
-      "commitMessagePrefix": "ci:",
-      "labels": [
-        "github-actions"
       ]
     },
     {
@@ -93,8 +51,6 @@
         "digest"
       ],
       "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true,
       "commitMessagePrefix": "ci:",
       "labels": [
         "docker"

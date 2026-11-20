@@ -41,22 +41,6 @@
       "automerge": false
     },
     {
-      "description": "Docker: auto-merge digest pins and digest refreshes (same tag, new build). Major/minor stay open for review.",
-      "matchManagers": [
-        "dockerfile",
-        "docker-compose"
-      ],
-      "matchUpdateTypes": [
-        "pinDigest",
-        "digest"
-      ],
-      "automerge": true,
-      "commitMessagePrefix": "ci:",
-      "labels": [
-        "docker"
-      ]
-    },
-    {
       "description": "pnpm refuses lockfile entries published less than a day ago, so Renovate waits just as long before it opens the PR",
       "matchManagers": [
         "npm"

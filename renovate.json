@@ -1,32 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
-    "config:recommended",
-    "helpers:pinGitHubActionDigests",
-    ":semanticCommits",
-    ":dependencyDashboard",
-    ":enableVulnerabilityAlertsWithLabel(security)",
-    "docker:pinDigests"
+    "local>junkerderprovinz/junkerderprovinz//renovate/base"
   ],
-  "timezone": "Europe/Vienna",
-  "schedule": [
-    "before 6am on monday"
-  ],
-  "labels": [
-    "dependencies"
-  ],
-  "prHourlyLimit": 4,
-  "prConcurrentLimit": 6,
   "packageRules": [
-    {
-      "description": "Node stays on 24 until 26 is tested. This covers the node image, node-version in setup-node (looked up as actions/node-versions), .nvmrc, engines and @types/node.",
-      "matchPackageNames": [
-        "node",
-        "actions/node-versions",
-        "@types/node"
-      ],
-      "allowedVersions": "<25"
-    },
     {
       "description": "The OpenCloud base images follow floating upstream tags (production its major, rolling :latest, see Dockerfile), and the weekly rebuild in build.yml keeps them current. Renovate would only propose digest pins, one PR per upstream build.",
       "matchPackageNames": [
@@ -47,25 +24,6 @@
       ]
     },
     {
-      "description": "GitHub Actions: auto-merge all updates. No CI runs on PRs, so platformAutomerge merges as soon as the PR is open.",
-      "matchManagers": [
-        "github-actions"
-      ],
-      "matchUpdateTypes": [
-        "major",
-        "minor",
-        "patch",
-        "digest"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true,
-      "commitMessagePrefix": "ci:",
-      "labels": [
-        "github-actions"
-      ]
-    },
-    {
       "description": "Go in lint.yml (setup-go) and the golang build image in the Dockerfile move together and wait for review, so lint tests the toolchain the image builds with.",
       "matchDepNames": [
         "go",
@@ -81,24 +39,6 @@
       ],
       "groupName": "Node toolchain",
       "automerge": false
-    },
-    {
-      "description": "Docker: auto-merge digest pins and digest refreshes (same tag, new build). Major/minor stay open for review.",
-      "matchManagers": [
-        "dockerfile",
-        "docker-compose"
-      ],
-      "matchUpdateTypes": [
-        "pinDigest",
-        "digest"
-      ],
-      "automerge": true,
-      "automergeType": "pr",
-      "platformAutomerge": true,
-      "commitMessagePrefix": "ci:",
-      "labels": [
-        "docker"
-      ]
     },
     {
       "description": "pnpm refuses lockfile entries published less than a day ago, so Renovate waits just as long before it opens the PR",

@@ -7,13 +7,14 @@
  * is one SVG with mark and wordmark together, split here into the hexagon mark
  * and the "OpenCloud" wordmark by x position, since the paths are not ordered
  * mark first. Both are used as drawn, only recoloured. The mark is clearly larger
- * than the wordmark, which is sized to the house name height. The claim is Lato
- * (OFL), converted to paths so the SVG needs no font.
+ * than the wordmark, which is sized to the house name height. The claim is Bree
+ * Light, read as TTF from HOUSE_FONTS (default %LOCALAPPDATA%\halleluja-fonts)
+ * and converted to paths so the SVG needs no font.
  *
  * Deps: `npm i -g @resvg/resvg-js opentype.js`. Run:
  *   node .github/assets/gen-banner.mjs && node .github/assets/gen-assets.mjs
  */
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -39,14 +40,9 @@ const THEMES = [
   { suffix: "-dark", bg: "#0d1117", logoColor: "#ffffff", claim: "#9aa4ad" },
 ];
 
-// Lato (OFL) for the claim, fetched at runtime and not committed.
-const claimFontPath = join(tmpdir(), "opencloud-Lato-Regular.ttf");
-if (!existsSync(claimFontPath)) {
-  const r = await fetch("https://github.com/google/fonts/raw/main/ofl/lato/Lato-Regular.ttf");
-  if (!r.ok) throw new Error(`claim font fetch ${r.status}`);
-  writeFileSync(claimFontPath, Buffer.from(await r.arrayBuffer()));
-}
-const claimFont = opentype.parse(readFileSync(claimFontPath));
+// The house typeface is licensed, so it is read from a local folder and never committed.
+const fonts = process.env.HOUSE_FONTS ?? join(process.env.LOCALAPPDATA ?? tmpdir(), "halleluja-fonts");
+const claimFont = opentype.parse(readFileSync(join(fonts, "bree-light.ttf")).buffer);
 const claimW = claimFont.getAdvanceWidth(CLAIM, claimSize);
 const cEm = (s) => s / claimFont.unitsPerEm;
 const claimAsc = claimFont.ascender * cEm(claimSize);

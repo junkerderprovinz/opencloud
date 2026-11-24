@@ -47,9 +47,17 @@ if [ "$(id -u)" = "0" ]; then
     # missing and hand them to the target user.
     mkdir -p "${CONFIG_DIR}" "${DATA_DIR}"
 
+    # chown -R without the lost+found that mke2fs puts at the root of a fresh
+    # ext4 volume. On a Proxmox mount point it belongs to the host's root, and an
+    # unprivileged LXC can neither read nor chown it. Anything else that fails
+    # still stops the container. -h changes a symlink, never what it points to.
+    chown_tree() {
+        find "$1" -path "$1/lost+found" -prune -o -exec chown -h "${PUID}:${PGID}" {} +
+    }
+
     # The config dir is small (a few YAML files and secrets), so a recursive
     # chown on every boot is cheap.
-    chown -R "${PUID}:${PGID}" "${CONFIG_DIR}"
+    chown_tree "${CONFIG_DIR}"
 
     # The data dir can grow huge (all user blobs live under it), so it is not
     # chowned recursively on every boot. The server runs as the target user and
@@ -60,7 +68,7 @@ if [ "$(id -u)" = "0" ]; then
     want="${PUID}:${PGID}"
     if [ ! -f "${SENTINEL}" ] || [ "$(cat "${SENTINEL}" 2>/dev/null)" != "${want}" ]; then
         echo "[entrypoint] healing ownership of ${DATA_DIR} -> ${want} (first run or PUID/PGID change)"
-        chown -R "${PUID}:${PGID}" "${DATA_DIR}"
+        chown_tree "${DATA_DIR}"
         printf '%s' "${want}" > "${SENTINEL}"
         chown "${PUID}:${PGID}" "${SENTINEL}"
     fi

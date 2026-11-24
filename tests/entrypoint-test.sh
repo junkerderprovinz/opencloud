@@ -29,9 +29,27 @@ boot() {
     }
 }
 
+# Runs the entrypoint as root of an unprivileged Proxmox LXC (see lxc-run.sh)
+# with Config and Data mounted. The arguments are paths the host's root owns.
+boot_lxc() {
+    docker run --rm --privileged --entrypoint /bin/sh \
+        -e PUID=99 -e PGID=100 \
+        -e IDM_ADMIN_PASSWORD=test -e OC_URL=https://cloud.example.com \
+        -e OWNER="$(id -u):$(id -g)" -e HOST_ROOT_OWNS="$*" \
+        -v "${here}/opencloud-stub.sh:/usr/bin/opencloud:ro" \
+        -v "${here}/lxc-run.sh:/lxc-run.sh:ro" \
+        -v "${case_dir}/config:/etc/opencloud" \
+        -v "${case_dir}/data:/var/lib/opencloud" \
+        "${img}" /lxc-run.sh >"${case_dir}/log" 2>&1
+}
+
+owns() {
+    grep -qxF "OWNS $1 $2" "${case_dir}/log" || fail "expected $2 owned by $1, got: $(grep " $2\$" "${case_dir}/log" || echo nothing)"
+}
+
 new_case() {
     case_dir="${work}/$1"
-    mkdir -p "${case_dir}/config"
+    mkdir -p "${case_dir}/config" "${case_dir}/data"
     current="$1"
     ok=1
 }
@@ -369,6 +387,30 @@ boot -e STUB_VERSION=7.2.6 && {
     [ ! -e "${case_dir}/config/stub-calls" ] || fail "init --diff ran"
     config_7 | cmp -s - "${case_dir}/config/opencloud.yaml" || fail "opencloud.yaml was changed"
 }
+done_case
+
+new_case "Proxmox mount points with the host's lost+found start the server"
+if boot_lxc /etc/opencloud/lost+found /var/lib/opencloud/lost+found; then
+    grep -q '^ENV ' "${case_dir}/log" || fail "the server did not start"
+    owns 100099:100100 /etc/opencloud
+    owns 100099:100100 /var/lib/opencloud
+    owns 0:0 /etc/opencloud/lost+found
+    owns 0:0 /var/lib/opencloud/lost+found
+else
+    fail "the container failed:"
+    sed 's/^/    | /' "${case_dir}/log"
+fi
+done_case
+
+new_case "anything else in Config the container cannot take over still stops it"
+if boot_lxc /etc/opencloud/lost+found /etc/opencloud/foreign; then
+    fail "the container started"
+else
+    grep -q "/etc/opencloud/foreign" "${case_dir}/log" || fail "the log does not name the folder"
+    if grep -q '^ENV ' "${case_dir}/log"; then
+        fail "the server started"
+    fi
+fi
 done_case
 
 exit "${failed}"

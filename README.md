@@ -167,7 +167,7 @@ You do not have to take my word for it. The code is open and every release note 
 
 <br>
 
-Questions? Check the [support thread](https://forums.unraid.net/topic/200022-support-junkerderprovinz-opencloud/). Bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
+Questions, bugs, ideas or feature requests? Please [open a GitHub issue](https://github.com/junkerderprovinz/opencloud/issues).
 
 <br>
 

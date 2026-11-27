@@ -11,6 +11,7 @@ BUTTONS = {
     "unraid": "https://ca.unraid.net/apps/opencloud-0z4cxjl1rm24ul",
     "mos": "https://mos-official.net/apps.html?search=OpenCloud",
     "zimaos": "https://github.com/junkerderprovinz/zimaos-apps#install",
+    "truenas-yaml": "https://github.com/junkerderprovinz/truenas-apps#opencloud",
     "compose": "https://raw.githubusercontent.com/junkerderprovinz/opencloud/main/compose.yaml",
     "proxmox": "#proxmox-ve",
     "synology": "#synology",

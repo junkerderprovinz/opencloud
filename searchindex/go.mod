@@ -5,7 +5,7 @@ go 1.26
 toolchain go1.27.4
 
 require (
-	github.com/blevesearch/bleve/v2 v2.6.3
+	github.com/blevesearch/bleve/v2 v2.6.4
 	go.etcd.io/bbolt v1.5.0
 )
 
